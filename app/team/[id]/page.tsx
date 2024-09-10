@@ -2,11 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell } from "@nextui-org/react";
+import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
+import toast, { Toaster } from 'react-hot-toast';
+import { differenceInYears, differenceInMonths, differenceInWeeks, differenceInDays } from 'date-fns';
 
 type TeamMember = {
   id: string;
@@ -28,17 +30,31 @@ type TeamMember = {
   id_card_file: string | null;
 };
 
+const formatCurrency = (amount: number): string => {
+  return amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).replace(/\s/g, '.');
+};
+
+const getAvatarUrl = (fileName: string) => {
+  return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/alpha/${fileName}`;
+};
+
 export default function TeamMemberDetails() {
   const params = useParams();
   const router = useRouter();
   const memberId = params.id as string;
   const [member, setMember] = useState<TeamMember | null>(null);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
-  const [balanceIncrease, setBalanceIncrease] = useState("");
+  const [balanceChange, setBalanceChange] = useState("");
   const [balanceError, setBalanceError] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editedMember, setEditedMember] = useState<TeamMember | null>(null);
+  const [isUploading, setIsUploading] = useState<Record<string, boolean>>({
+    contract: false,
+    id_card: false
+  });
+  const [editErrors, setEditErrors] = useState<Partial<Record<keyof TeamMember, string>>>({});
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
 
   useEffect(() => {
     fetchMemberDetails();
@@ -54,8 +70,12 @@ export default function TeamMemberDetails() {
     if (error) {
       console.error('Error fetching member details:', error);
     } else {
-      setMember(data);
-      setEditedMember(data);
+      const memberWithAvatarUrl = {
+        ...data,
+        avatar: data.avatar ? getAvatarUrl(data.avatar) : null
+      };
+      setMember(memberWithAvatarUrl);
+      setEditedMember(memberWithAvatarUrl);
     }
   };
 
@@ -78,20 +98,21 @@ export default function TeamMemberDetails() {
 
   useEffect(() => {
     if (member) {
-      setBalanceIncrease(Math.round(member.salary).toString());
+      setBalanceChange(Math.round(member.salary).toString());
     }
   }, [member]);
 
   const handleConfirmCompletion = async () => {
     if (!member) return;
 
-    const increaseAmount = parseFloat(balanceIncrease);
-    if (isNaN(increaseAmount) || increaseAmount <= 1) {
-      setBalanceError("Amount must be greater than 1 FCFA");
+    const changeAmount = parseFloat(balanceChange);
+    if (isNaN(changeAmount)) {
+      setBalanceError("Please enter a valid number");
       return;
     }
 
-    const newBalance = Math.round(member.current_balance + increaseAmount);
+    const newBalance = Math.round(member.current_balance + changeAmount);
+
     const { error } = await supabase
       .from('team')
       .update({ current_balance: newBalance })
@@ -99,15 +120,38 @@ export default function TeamMemberDetails() {
 
     if (error) {
       console.error('Error updating balance:', error);
+      toast.error('Failed to update balance. Please try again.');
     } else {
       setMember({ ...member, current_balance: newBalance });
       setIsBalanceModalOpen(false);
       setBalanceError("");
+      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${formatCurrency(Math.abs(changeAmount))} FCFA successfully!`);
     }
+  };
+
+  const validateEditedMember = () => {
+    const errors: Partial<Record<keyof TeamMember, string>> = {};
+    if (!editedMember) return errors;
+
+    if (!editedMember.name.trim()) errors.name = "Name is required";
+    if (!editedMember.email.trim()) errors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(editedMember.email)) errors.email = "Invalid email format";
+    if (!editedMember.phone1.trim()) errors.phone1 = "Phone 1 is required";
+    if (!editedMember.address.trim()) errors.address = "Address is required";
+    if (!editedMember.contract_start) errors.contract_start = "Contract start date is required";
+    if (editedMember.salary <= 0) errors.salary = "Salary must be greater than 0";
+
+    return errors;
   };
 
   const handleEditSave = async () => {
     if (!editedMember) return;
+
+    const validationErrors = validateEditedMember();
+    if (Object.keys(validationErrors).length > 0) {
+      setEditErrors(validationErrors);
+      return;
+    }
 
     const { error } = await supabase
       .from('team')
@@ -116,37 +160,72 @@ export default function TeamMemberDetails() {
 
     if (error) {
       console.error('Error updating member:', error);
+      toast.error('Failed to update member details. Please try again.');
     } else {
       setMember(editedMember);
       setIsEditModalOpen(false);
+      setEditErrors({});
+      toast.success('Member details updated successfully!');
     }
   };
 
   const handleFileUpload = async (fileType: 'contract' | 'id_card') => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.pdf,.doc,.docx';
+    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png';
     input.onchange = async (e: Event) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
+        setIsUploading(prev => ({ ...prev, [fileType]: true }));
         const fileName = `${fileType}_${memberId}_${Date.now()}.${file.name.split('.').pop()}`;
-        const { data, error } = await supabase.storage
-          .from('alpha')
-          .upload(fileName, file);
+        
+        try {
+          // Check if the bucket exists and create it if it doesn't
+          const { data: bucketData, error: bucketError } = await supabase
+            .storage
+            .getBucket('alpha');
 
-        if (error) {
-          console.error(`Error uploading ${fileType}:`, error);
-        } else {
+          if (bucketError && 'statusCode' in bucketError && bucketError.statusCode === '404') {
+            const { data: createBucketData, error: createBucketError } = await supabase
+              .storage
+              .createBucket('alpha', { public: false });
+
+            if (createBucketError) {
+              throw new Error('Error creating bucket: ' + createBucketError.message);
+            }
+          } else if (bucketError) {
+            throw new Error('Error checking bucket: ' + bucketError.message);
+          }
+
+          // Upload the file
+          const { data, error } = await supabase.storage
+            .from('alpha')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (error) {
+            throw new Error(`Error uploading ${fileType}: ` + error.message);
+          }
+
+          // Update the database
           const { data: updateData, error: updateError } = await supabase
             .from('team')
             .update({ [`${fileType}_file`]: fileName })
             .eq('id', memberId);
 
           if (updateError) {
-            console.error(`Error updating ${fileType} in database:`, updateError);
-          } else {
-            setMember(prev => prev ? { ...prev, [`${fileType}_file`]: fileName } : null);
+            throw new Error(`Error updating ${fileType} in database: ` + updateError.message);
           }
+
+          setMember(prev => prev ? { ...prev, [`${fileType}_file`]: fileName } : null);
+          toast.success(`${fileType.charAt(0).toUpperCase() + fileType.slice(1)} uploaded successfully!`);
+        } catch (error) {
+          console.error(error);
+          toast.error(error instanceof Error ? error.message : 'An error occurred during upload');
+        } finally {
+          setIsUploading(prev => ({ ...prev, [fileType]: false }));
         }
       }
     };
@@ -157,19 +236,77 @@ export default function TeamMemberDetails() {
     if (member && member[`${fileType}_file`]) {
       const { data, error } = await supabase.storage
         .from('alpha')
-        .download(member[`${fileType}_file`]);
+        .download(member[`${fileType}_file`] as string);
 
       if (error) {
         console.error(`Error downloading ${fileType}:`, error);
+        toast.error(`Error downloading ${fileType}`);
       } else {
         const url = URL.createObjectURL(data);
         const a = document.createElement('a');
         a.href = url;
-        a.download = member[`${fileType}_file`].split('/').pop() || `${fileType}.pdf`;
+        a.download = member[`${fileType}_file`]?.split('/').pop() || `${fileType}.pdf`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+        toast.success(`${fileType.charAt(0).toUpperCase() + fileType.slice(1)} downloaded successfully!`);
+      }
+    }
+  };
+
+  const calculateTimeSinceContractStart = (startDate: string) => {
+    const start = new Date(startDate);
+    const now = new Date();
+    const years = differenceInYears(now, start);
+    const months = differenceInMonths(now, start) % 12;
+    const weeks = differenceInWeeks(now, start) % 4;
+    const days = differenceInDays(now, start) % 7;
+
+    const parts = [];
+    if (years > 0) parts.push(`${years} year${years > 1 ? 's' : ''}`);
+    if (months > 0) parts.push(`${months} month${months > 1 ? 's' : ''}`);
+    if (weeks > 0) parts.push(`${weeks} week${weeks > 1 ? 's' : ''}`);
+    if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+
+    return parts.join(', ');
+  };
+
+  const handleAvatarUpdate = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && member) {
+      setIsUpdatingAvatar(true);
+      const fileName = `avatar_${memberId}_${Date.now()}.${file.name.split('.').pop()}`;
+      
+      try {
+        const { data, error } = await supabase.storage
+          .from('alpha')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) {
+          throw new Error(`Error uploading avatar: ${error.message}`);
+        }
+
+        const { data: updateData, error: updateError } = await supabase
+          .from('team')
+          .update({ avatar: fileName })
+          .eq('id', memberId);
+
+        if (updateError) {
+          throw new Error(`Error updating avatar in database: ${updateError.message}`);
+        }
+
+        const avatarUrl = getAvatarUrl(fileName);
+        setMember({ ...member, avatar: avatarUrl });
+        toast.success('Avatar updated successfully!');
+      } catch (error) {
+        console.error(error);
+        toast.error(error instanceof Error ? error.message : 'An error occurred during avatar update');
+      } finally {
+        setIsUpdatingAvatar(false);
       }
     }
   };
@@ -178,6 +315,8 @@ export default function TeamMemberDetails() {
 
   return (
     <div className="space-y-6">
+      <Toaster position="top-center" reverseOrder={false} />
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border border-gray-200 dark:border-gray-700">
           <CardBody className="flex flex-row items-center justify-between">
@@ -185,7 +324,7 @@ export default function TeamMemberDetails() {
               <WalletIcon className="w-6 h-6 text-primary" />
               <div>
                 <p className="text-xs text-default-500">Current Balance</p>
-                <p className="text-base font-semibold">{Math.round(member.current_balance)} FCFA</p>
+                <p className="text-base font-semibold">{formatCurrency(member.current_balance)} FCFA</p>
               </div>
             </div>
             <Button 
@@ -195,7 +334,7 @@ export default function TeamMemberDetails() {
               onPress={() => setIsBalanceModalOpen(true)}
               className="bg-default-100 hover:bg-blue-500 hover:text-white transition-colors"
             >
-              <PlusIcon className="w-4 h-4" />
+              <PencilIcon className="w-4 h-4" />
             </Button>
           </CardBody>
         </Card>
@@ -204,7 +343,7 @@ export default function TeamMemberDetails() {
             <CurrencyDollarIcon className="w-6 h-6 text-success" />
             <div>
               <p className="text-xs text-default-500">Total Earned</p>
-              <p className="text-base font-semibold">{Math.round(member.total_earned)} FCFA</p>
+              <p className="text-base font-semibold">{formatCurrency(member.total_earned)} FCFA</p>
             </div>
           </CardBody>
         </Card>
@@ -222,7 +361,7 @@ export default function TeamMemberDetails() {
             <CreditCardIcon className="w-6 h-6 text-danger" />
             <div>
               <p className="text-xs text-default-500">Generated</p>
-              <p className="text-base font-semibold">{Math.round(member.generated)} FCFA</p>
+              <p className="text-base font-semibold">{formatCurrency(member.generated)} FCFA</p>
             </div>
           </CardBody>
         </Card>
@@ -240,7 +379,31 @@ export default function TeamMemberDetails() {
           <CardBody>
             <div className="flex flex-col space-y-4">
               <div className="flex items-center space-x-4">
-                <Avatar src={member.avatar} size="lg" />
+                <div className="relative group">
+                  <Avatar 
+                    src={member.avatar || undefined} 
+                    size="lg" 
+                    showFallback 
+                    alt={`${member.name}'s avatar`}
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                    <label htmlFor="avatar-upload" className="cursor-pointer">
+                      {isUpdatingAvatar ? (
+                        <Spinner size="sm" color="white" />
+                      ) : (
+                        <CameraIcon className="w-6 h-6 text-white" />
+                      )}
+                    </label>
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpdate}
+                      disabled={isUpdatingAvatar}
+                    />
+                  </div>
+                </div>
                 <div>
                   <p className="font-semibold">{member.name}</p>
                   <p className="text-sm text-default-500">{member.email}</p>
@@ -251,7 +414,7 @@ export default function TeamMemberDetails() {
                   <p className="text-sm text-default-500">Phone 1</p>
                   <Dropdown>
                     <DropdownTrigger>
-                      <Button variant="bordered" size="md">
+                      <Button variant="bordered" size="md" startContent={<PhoneIcon className="w-4 h-4" />}>
                         {member.phone1}
                       </Button>
                     </DropdownTrigger>
@@ -261,20 +424,22 @@ export default function TeamMemberDetails() {
                     </DropdownMenu>
                   </Dropdown>
                 </div>
-                <div>
-                  <p className="text-sm text-default-500">Phone 2</p>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button variant="bordered" size="md">
-                        {member.phone2}
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu aria-label="Phone Actions">
-                      <DropdownItem key="call">Call</DropdownItem>
-                      <DropdownItem key="whatsapp">WhatsApp</DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
+                {member.phone2 && (
+                  <div>
+                    <p className="text-sm text-default-500">Phone 2</p>
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button variant="bordered" size="md" startContent={<PhoneIcon className="w-4 h-4" />}>
+                          {member.phone2}
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu aria-label="Phone Actions">
+                        <DropdownItem key="call">Call</DropdownItem>
+                        <DropdownItem key="whatsapp">WhatsApp</DropdownItem>
+                      </DropdownMenu>
+                    </Dropdown>
+                  </div>
+                )}
               </div>
               <div>
                 <p className="text-sm text-default-500">Address</p>
@@ -282,11 +447,17 @@ export default function TeamMemberDetails() {
               </div>
               <div>
                 <p className="text-sm text-default-500">Contract Start</p>
-                <p>{new Date(member.contract_start).toLocaleDateString()}</p>
+                <p>
+                  {new Date(member.contract_start).toLocaleDateString()}
+                  {' '}
+                  <span className="text-sm text-default-500">
+                    ({calculateTimeSinceContractStart(member.contract_start)})
+                  </span>
+                </p>
               </div>
               <div>
                 <p className="text-sm text-default-500">Salary</p>
-                <p>{Math.round(member.salary)} FCFA / day</p>
+                <p>{formatCurrency(member.salary)} FCFA / day</p>
               </div>
               <div className="flex space-x-4">
                 <Dropdown>
@@ -295,17 +466,26 @@ export default function TeamMemberDetails() {
                       size="sm"
                       color="primary"
                       variant="flat"
-                      startContent={member?.contract_file ? <CheckIcon className="w-4 h-4" /> : <ArrowUpTrayIcon className="w-4 h-4" />}
+                      startContent={
+                        isUploading.contract ? null : (
+                          member?.contract_file ? (
+                            <CheckIcon className="w-4 h-4" />
+                          ) : (
+                            <ArrowUpTrayIcon className="w-4 h-4" />
+                          )
+                        )
+                      }
+                      isLoading={isUploading.contract}
                     >
-                      Contract
+                      {isUploading.contract ? "Uploading..." : "Contract"}
                     </Button>
                   </DropdownTrigger>
                   <DropdownMenu aria-label="Contract Actions">
-                    {member?.contract_file ? (
+                    {member?.contract_file && (
                       <DropdownItem key="download" startContent={<ArrowDownTrayIcon className="w-4 h-4" />} onPress={() => handleFileDownload('contract')}>
                         Download
                       </DropdownItem>
-                    ) : null}
+                    )}
                     <DropdownItem key="upload" startContent={<ArrowUpTrayIcon className="w-4 h-4" />} onPress={() => handleFileUpload('contract')}>
                       {member?.contract_file ? 'Replace' : 'Upload'}
                     </DropdownItem>
@@ -317,17 +497,26 @@ export default function TeamMemberDetails() {
                       size="sm"
                       color="secondary"
                       variant="flat"
-                      startContent={member?.id_card_file ? <CheckIcon className="w-4 h-4" /> : <ArrowUpTrayIcon className="w-4 h-4" />}
+                      startContent={
+                        isUploading.id_card ? null : (
+                          member?.id_card_file ? (
+                            <CheckIcon className="w-4 h-4" />
+                          ) : (
+                            <ArrowUpTrayIcon className="w-4 h-4" />
+                          )
+                        )
+                      }
+                      isLoading={isUploading.id_card}
                     >
-                      ID Card
+                      {isUploading.id_card ? "Uploading..." : "ID Card"}
                     </Button>
                   </DropdownTrigger>
                   <DropdownMenu aria-label="ID Card Actions">
-                    {member?.id_card_file ? (
+                    {member?.id_card_file && (
                       <DropdownItem key="download" startContent={<ArrowDownTrayIcon className="w-4 h-4" />} onPress={() => handleFileDownload('id_card')}>
                         Download
                       </DropdownItem>
-                    ) : null}
+                    )}
                     <DropdownItem key="upload" startContent={<ArrowUpTrayIcon className="w-4 h-4" />} onPress={() => handleFileUpload('id_card')}>
                       {member?.id_card_file ? 'Replace' : 'Upload'}
                     </DropdownItem>
@@ -358,7 +547,7 @@ export default function TeamMemberDetails() {
                   <TableCell>2023-06-01</TableCell>
                   <TableCell>Cleaning</TableCell>
                   <TableCell>New York</TableCell>
-                  <TableCell>150 FCFA</TableCell>
+                  <TableCell>{formatCurrency(150)} FCFA</TableCell>
                   <TableCell>
                     <Chip color="success" size="sm">Completed</Chip>
                   </TableCell>
@@ -386,10 +575,13 @@ export default function TeamMemberDetails() {
 
       <Modal 
         isOpen={isEditModalOpen} 
-        onClose={() => setIsEditModalOpen(false)}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditErrors({});
+        }}
       >
         <ModalContent>
-          <ModalHeader>Edit User Infos</ModalHeader>
+          <ModalHeader>Edit User Info</ModalHeader>
           <ModalBody>
             {editedMember && (
               <>
@@ -397,19 +589,25 @@ export default function TeamMemberDetails() {
                   label="Name"
                   value={editedMember.name}
                   onChange={(e) => setEditedMember({...editedMember, name: e.target.value})}
+                  isInvalid={!!editErrors.name}
+                  errorMessage={editErrors.name}
                 />
                 <Input
                   label="Email"
                   value={editedMember.email}
                   onChange={(e) => setEditedMember({...editedMember, email: e.target.value})}
+                  isInvalid={!!editErrors.email}
+                  errorMessage={editErrors.email}
                 />
                 <Input
                   label="Phone 1"
                   value={editedMember.phone1}
                   onChange={(e) => setEditedMember({...editedMember, phone1: e.target.value})}
+                  isInvalid={!!editErrors.phone1}
+                  errorMessage={editErrors.phone1}
                 />
                 <Input
-                  label="Phone 2"
+                  label="Phone 2 (Optional)"
                   value={editedMember.phone2}
                   onChange={(e) => setEditedMember({...editedMember, phone2: e.target.value})}
                 />
@@ -417,6 +615,16 @@ export default function TeamMemberDetails() {
                   label="Address"
                   value={editedMember.address}
                   onChange={(e) => setEditedMember({...editedMember, address: e.target.value})}
+                  isInvalid={!!editErrors.address}
+                  errorMessage={editErrors.address}
+                />
+                <Input
+                  label="Contract Start Date"
+                  type="date"
+                  value={editedMember.contract_start.split('T')[0]}
+                  onChange={(e) => setEditedMember({...editedMember, contract_start: e.target.value})}
+                  isInvalid={!!editErrors.contract_start}
+                  errorMessage={editErrors.contract_start}
                 />
                 <Input
                   label="Salary"
@@ -424,12 +632,17 @@ export default function TeamMemberDetails() {
                   value={editedMember.salary.toString()}
                   onChange={(e) => setEditedMember({...editedMember, salary: Number(e.target.value)})}
                   endContent={<div className="pointer-events-none flex items-center"><span className="text-default-400 text-small">/ day</span></div>}
+                  isInvalid={!!editErrors.salary}
+                  errorMessage={editErrors.salary}
                 />
               </>
             )}
           </ModalBody>
           <ModalFooter>
-            <Button color="danger" variant="light" onPress={() => setIsEditModalOpen(false)}>
+            <Button color="danger" variant="light" onPress={() => {
+              setIsEditModalOpen(false);
+              setEditErrors({});
+            }}>
               Cancel
             </Button>
             <Button color="primary" onPress={handleEditSave}>
@@ -470,14 +683,14 @@ export default function TeamMemberDetails() {
         isDismissable={false}
       >
         <ModalContent>
-          <ModalHeader>Increase Balance</ModalHeader>
+          <ModalHeader>Update Balance</ModalHeader>
           <ModalBody>
             <Input
               type="number"
-              label="Increase balance by:"
-              value={balanceIncrease}
+              label="Change balance by:"
+              value={balanceChange}
               onChange={(e) => {
-                setBalanceIncrease(e.target.value);
+                setBalanceChange(e.target.value);
                 setBalanceError("");
               }}
               startContent={
@@ -485,6 +698,7 @@ export default function TeamMemberDetails() {
                   <span className="text-default-400 text-small">FCFA</span>
                 </div>
               }
+              description="Enter a positive value to increase or a negative value to decrease the balance. Negative final balance is allowed."
               isInvalid={!!balanceError}
               errorMessage={balanceError}
             />
