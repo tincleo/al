@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Table,
   TableHeader,
@@ -27,6 +27,7 @@ import { SearchIcon } from "../components/SearchIcon";
 import { capitalize } from "../utils";
 import { title } from "../components/primitives";
 import { useRouter } from 'next/navigation';
+import { supabase } from "@/lib/supabaseClient";
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   active: "success",
@@ -35,12 +36,12 @@ const statusColorMap: Record<string, ChipProps["color"]> = {
 
 const columns = [
   { name: "NAME", uid: "name", sortable: true },
-  { name: "PHONE", uid: "phone", sortable: true },
+  { name: "PHONE", uid: "phone1", sortable: true },
   { name: "ADDRESS", uid: "address", sortable: true },
-  { name: "CONTRACT START", uid: "contractStart", sortable: true },
+  { name: "CONTRACT START", uid: "contract_start", sortable: true },
   { name: "STATUS", uid: "status", sortable: true },
   { name: "SALARY", uid: "salary", sortable: true },
-  { name: "CURRENT BALANCE", uid: "currentBalance", sortable: true },
+  { name: "CURRENT BALANCE", uid: "current_balance", sortable: true },
   { name: "ACTIONS", uid: "actions" },
 ];
 
@@ -49,55 +50,22 @@ const statusOptions = [
   { name: "Suspended", uid: "suspended" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["name", "phone", "contractStart", "status", "salary", "currentBalance", "actions"];
+const INITIAL_VISIBLE_COLUMNS = ["name", "phone1", "contract_start", "status", "salary", "current_balance", "actions"];
 
 type TeamMember = {
   id: number;
   name: string;
-  phone: string;
+  phone1: string;
   address: string;
-  contractStart: string;
+  contract_start: string;
   status: string;
   salary: number;
-  currentBalance: number;
+  current_balance: number;
 };
-
-const teamMembers: TeamMember[] = [
-  {
-    id: 1,
-    name: "Arnauld Johnson",
-    phone: "123-456-7890",
-    address: "123 Main St, New York, NY 10001",
-    contractStart: "2023-01-15",
-    status: "active",
-    salary: 45000,
-    currentBalance: 2500,
-  },
-  {
-    id: 2,
-    name: "Prosper Smith",
-    phone: "234-567-8901",
-    address: "456 Elm St, Los Angeles, CA 90001",
-    contractStart: "2023-02-01",
-    status: "active",
-    salary: 42000,
-    currentBalance: 1800,
-  },
-  {
-    id: 3,
-    name: "Donovan Brown",
-    phone: "345-678-9012",
-    address: "789 Oak St, Chicago, IL 60601",
-    contractStart: "2023-03-10",
-    status: "suspended",
-    salary: 40000,
-    currentBalance: -500,
-  },
-  // Add more team members as needed...
-];
 
 export default function TeamPage() {
   const router = useRouter();
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [filterValue, setFilterValue] = React.useState("");
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]));
   const [visibleColumns, setVisibleColumns] = React.useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
@@ -165,10 +133,9 @@ export default function TeamPage() {
           </Chip>
         );
       case "salary":
-        return `$${cellValue.toLocaleString()}`;
-      case "currentBalance":
-        return `$${cellValue.toLocaleString()}`;
-      case "phone":
+      case "current_balance":
+        return `${(cellValue as number).toLocaleString()} FCFA`;
+      case "phone1":
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -342,6 +309,22 @@ export default function TeamPage() {
       </div>
     );
   }, [page, pages, onPreviousPage, onNextPage]);
+
+  useEffect(() => {
+    fetchTeamMembers();
+  }, []);
+
+  const fetchTeamMembers = async () => {
+    const { data, error } = await supabase
+      .from('team')
+      .select('*');
+    
+    if (error) {
+      console.error('Error fetching team members:', error);
+    } else {
+      setTeamMembers(data);
+    }
+  };
 
   return (
     <section className="flex flex-col gap-4">
