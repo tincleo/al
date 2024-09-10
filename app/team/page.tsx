@@ -18,7 +18,12 @@ import {
   Pagination,
   Selection,
   ChipProps,
-  SortDescriptor
+  SortDescriptor,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter
 } from "@nextui-org/react";
 import { PlusIcon } from "../components/PlusIcon";
 import { VerticalDotsIcon } from "../components/VerticalDotsIcon";
@@ -28,6 +33,7 @@ import { capitalize } from "../utils";
 import { title } from "../components/primitives";
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabaseClient";
+import toast, { Toaster } from 'react-hot-toast';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   active: "success",
@@ -56,11 +62,15 @@ type TeamMember = {
   id: number;
   name: string;
   phone1: string;
+  email: string;
   address: string;
   contract_start: string;
   status: string;
   salary: number;
   current_balance: number;
+  total_earned: number;
+  jobs_executed: number;
+  generated: number;
 };
 
 export default function TeamPage() {
@@ -77,6 +87,21 @@ export default function TeamPage() {
   });
 
   const [page, setPage] = React.useState(1);
+  const [isNewMemberModalOpen, setIsNewMemberModalOpen] = useState(false);
+  const [newMember, setNewMember] = useState<Partial<TeamMember>>({
+    name: '',
+    phone1: '',
+    email: '',
+    address: '',
+    contract_start: new Date().toISOString().split('T')[0],
+    status: 'active',
+    salary: 5000,
+    current_balance: 0,
+    total_earned: 0,
+    jobs_executed: 0,
+    generated: 0,
+  });
+  const [newMemberErrors, setNewMemberErrors] = useState<Partial<Record<keyof TeamMember, string>>>({});
 
   const hasSearchFilter = Boolean(filterValue);
 
@@ -199,6 +224,15 @@ export default function TeamPage() {
     setPage(1)
   },[])
 
+  const handleAddNewMember = () => {
+    setNewMember({
+      ...newMember,
+      contract_start: new Date().toISOString().split('T')[0],
+      salary: 5000,
+    });
+    setIsNewMemberModalOpen(true);
+  };
+
   const topContent = React.useMemo(() => {
     return (
       <div className="flex flex-col gap-4">
@@ -255,7 +289,7 @@ export default function TeamPage() {
                 ))}
               </DropdownMenu>
             </Dropdown>
-            <Button color="primary" endContent={<PlusIcon />}>
+            <Button color="primary" endContent={<PlusIcon />} onPress={handleAddNewMember}>
               Add New
             </Button>
           </div>
@@ -284,6 +318,7 @@ export default function TeamPage() {
     onRowsPerPageChange,
     teamMembers.length,
     hasSearchFilter,
+    handleAddNewMember,
   ]);
 
   const bottomContent = React.useMemo(() => {
@@ -326,8 +361,64 @@ export default function TeamPage() {
     }
   };
 
+  const validateNewMember = () => {
+    const errors: Partial<Record<keyof TeamMember, string>> = {};
+    if (!newMember.name?.trim()) errors.name = "Name is required";
+    if (!newMember.phone1?.trim()) errors.phone1 = "Phone 1 is required";
+    if (!newMember.email?.trim()) errors.email = "Email is required";
+    if (!newMember.address?.trim()) errors.address = "Address is required";
+    if (!newMember.contract_start) errors.contract_start = "Contract start date is required";
+    if (!newMember.salary || newMember.salary <= 0) errors.salary = "Salary must be greater than 0";
+    return errors;
+  };
+
+  const handleSaveNewMember = async () => {
+    const validationErrors = validateNewMember();
+    if (Object.keys(validationErrors).length > 0) {
+      setNewMemberErrors(validationErrors);
+      return;
+    }
+
+    const newMemberData = {
+      ...newMember,
+      current_balance: newMember.current_balance || 0,
+      total_earned: 0,
+      jobs_executed: 0,
+      generated: 0,
+    };
+
+    const { data, error } = await supabase
+      .from('team')
+      .insert([newMemberData])
+      .select();
+
+    if (error) {
+      console.error('Error adding new member:', error);
+      toast.error('Failed to add new member. Please try again.');
+    } else {
+      setTeamMembers([...teamMembers, data[0]]);
+      setIsNewMemberModalOpen(false);
+      setNewMember({
+        name: '',
+        phone1: '',
+        email: '',
+        address: '',
+        contract_start: new Date().toISOString().split('T')[0],
+        status: 'active',
+        salary: 5000,
+        current_balance: 0,
+        total_earned: 0,
+        jobs_executed: 0,
+        generated: 0,
+      });
+      setNewMemberErrors({});
+      toast.success('New member added successfully!');
+    }
+  };
+
   return (
     <section className="flex flex-col gap-4">
+      <Toaster position="top-center" reverseOrder={false} />
       <h1 className={title({ size: "sm" })}>Team Management</h1>
       <Table
         aria-label="Example table with custom cells, pagination and sorting"
@@ -361,6 +452,102 @@ export default function TeamPage() {
           )}
         </TableBody>
       </Table>
+
+      <Modal 
+        isOpen={isNewMemberModalOpen} 
+        onClose={() => {
+          setIsNewMemberModalOpen(false);
+          setNewMemberErrors({});
+          setNewMember({
+            name: '',
+            phone1: '',
+            email: '',
+            address: '',
+            contract_start: new Date().toISOString().split('T')[0],
+            status: 'active',
+            salary: 5000,
+            current_balance: 0,
+            total_earned: 0,
+            jobs_executed: 0,
+            generated: 0,
+          });
+        }}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Add New Team Member</ModalHeader>
+          <ModalBody>
+            <Input
+              label="Name"
+              value={newMember.name}
+              onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+              isInvalid={!!newMemberErrors.name}
+              errorMessage={newMemberErrors.name}
+            />
+            <Input
+              label="Email"
+              value={newMember.email}
+              onChange={(e) => setNewMember({...newMember, email: e.target.value})}
+              isInvalid={!!newMemberErrors.email}
+              errorMessage={newMemberErrors.email}
+            />
+            <Input
+              label="Phone 1"
+              value={newMember.phone1}
+              onChange={(e) => setNewMember({...newMember, phone1: e.target.value})}
+              isInvalid={!!newMemberErrors.phone1}
+              errorMessage={newMemberErrors.phone1}
+            />
+            <Input
+              label="Address"
+              value={newMember.address}
+              onChange={(e) => setNewMember({...newMember, address: e.target.value})}
+              isInvalid={!!newMemberErrors.address}
+              errorMessage={newMemberErrors.address}
+            />
+            <Input
+              label="Contract Start Date"
+              type="date"
+              value={newMember.contract_start}
+              onChange={(e) => setNewMember({...newMember, contract_start: e.target.value})}
+              isInvalid={!!newMemberErrors.contract_start}
+              errorMessage={newMemberErrors.contract_start}
+            />
+            <Input
+              label="Salary"
+              type="number"
+              value={newMember.salary?.toString()}
+              onChange={(e) => setNewMember({...newMember, salary: Number(e.target.value)})}
+              endContent={<div className="pointer-events-none flex items-center"><span className="text-default-400 text-small">/ day</span></div>}
+              isInvalid={!!newMemberErrors.salary}
+              errorMessage={newMemberErrors.salary}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" variant="light" onPress={() => {
+              setIsNewMemberModalOpen(false);
+              setNewMemberErrors({});
+              setNewMember({
+                name: '',
+                phone1: '',
+                email: '',
+                address: '',
+                contract_start: new Date().toISOString().split('T')[0],
+                status: 'active',
+                salary: 5000,
+                current_balance: 0,
+                total_earned: 0,
+                jobs_executed: 0,
+                generated: 0,
+              });
+            }}>
+              Cancel
+            </Button>
+            <Button color="primary" onPress={handleSaveNewMember}>
+              Add Member
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </section>
   );
 }

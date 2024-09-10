@@ -30,8 +30,9 @@ type TeamMember = {
   id_card_file: string | null;
 };
 
-const formatCurrency = (amount: number): string => {
-  return amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).replace(/\s/g, '.');
+const formatCurrency = (amount: number | null | undefined): string => {
+  if (amount == null) return '0 FCFA';
+  return amount.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).replace(/\s/g, '.') + ' FCFA';
 };
 
 const getAvatarUrl = (fileName: string) => {
@@ -125,7 +126,7 @@ export default function TeamMemberDetails() {
       setMember({ ...member, current_balance: newBalance });
       setIsBalanceModalOpen(false);
       setBalanceError("");
-      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${formatCurrency(Math.abs(changeAmount))} FCFA successfully!`);
+      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${formatCurrency(Math.abs(changeAmount))} successfully!`);
     }
   };
 
@@ -324,7 +325,7 @@ export default function TeamMemberDetails() {
               <WalletIcon className="w-6 h-6 text-primary" />
               <div>
                 <p className="text-xs text-default-500">Current Balance</p>
-                <p className="text-base font-semibold">{formatCurrency(member.current_balance)} FCFA</p>
+                <p className="text-base font-semibold">{formatCurrency(member.current_balance)}</p>
               </div>
             </div>
             <Button 
@@ -343,7 +344,7 @@ export default function TeamMemberDetails() {
             <CurrencyDollarIcon className="w-6 h-6 text-success" />
             <div>
               <p className="text-xs text-default-500">Total Earned</p>
-              <p className="text-base font-semibold">{formatCurrency(member.total_earned)} FCFA</p>
+              <p className="text-base font-semibold">{formatCurrency(member.total_earned)}</p>
             </div>
           </CardBody>
         </Card>
@@ -361,7 +362,7 @@ export default function TeamMemberDetails() {
             <CreditCardIcon className="w-6 h-6 text-danger" />
             <div>
               <p className="text-xs text-default-500">Generated</p>
-              <p className="text-base font-semibold">{formatCurrency(member.generated)} FCFA</p>
+              <p className="text-base font-semibold">{formatCurrency(member.generated)}</p>
             </div>
           </CardBody>
         </Card>
@@ -457,7 +458,7 @@ export default function TeamMemberDetails() {
               </div>
               <div>
                 <p className="text-sm text-default-500">Salary</p>
-                <p>{formatCurrency(member.salary)} FCFA / day</p>
+                <p>{formatCurrency(member.salary)} / day</p>
               </div>
               <div className="flex space-x-4">
                 <Dropdown>
@@ -547,7 +548,7 @@ export default function TeamMemberDetails() {
                   <TableCell>2023-06-01</TableCell>
                   <TableCell>Cleaning</TableCell>
                   <TableCell>New York</TableCell>
-                  <TableCell>{formatCurrency(150)} FCFA</TableCell>
+                  <TableCell>{formatCurrency(150)}</TableCell>
                   <TableCell>
                     <Chip color="success" size="sm">Completed</Chip>
                   </TableCell>
