@@ -5,6 +5,7 @@ import clsx from "clsx";
 
 import { Providers } from "./providers";
 import { Sidebar } from "./components/sidebar";
+import { TopMenu } from "./components/top-menu"; // Add this import
 
 import { siteConfig } from "@/config/site";
 import { fontSans } from "@/config/fonts";
@@ -45,7 +46,8 @@ export default function RootLayout({
           <div className="relative flex min-h-screen">
             <Sidebar />
             <div className="flex-1 flex flex-col ml-64">
-              <main className="flex-1 overflow-y-auto">
+              <TopMenu /> {/* Add the TopMenu component here */}
+              <main className="flex-1 overflow-y-auto p-4"> {/* Add padding here */}
                 {children}
               </main>
             </div>
