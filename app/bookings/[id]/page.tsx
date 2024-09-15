@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Select, SelectItem, Selection } from "@nextui-org/react";
+import { Card, CardBody, CardHeader, Divider, Chip, Avatar, AvatarGroup, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Select, SelectItem, Selection } from "@nextui-org/react";
 import { title } from "../../components/primitives";
 import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, ShareIcon, PencilIcon, CameraIcon, PlusIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -255,25 +255,24 @@ export default function BookingDetails() {
     const selectedIds = Array.from(keys) as string[];
     setSelectedTeamMembers(new Set(selectedIds));
 
+    const selectedMembers = teamMembers.filter(member => selectedIds.includes(member.id));
+
     const { error } = await supabase
       .from('bookings')
       .update({
-        assigned_to: selectedIds.map(id => ({
-          id,
-          name: teamMembers.find(member => member.id === id)?.name
-        }))
+        assigned_to: selectedMembers.map(({ id, name }) => ({ id, name }))
       })
       .eq('id', bookingId);
 
     if (error) {
       console.error('Error updating assigned team:', error);
     } else {
-      fetchBookingDetails(); // Refresh booking details
+      fetchBookingDetails();
     }
   };
 
   const getAvatarUrl = (avatarPath: string | null) => {
-    if (!avatarPath) return null;
+    if (!avatarPath) return undefined;
     return `https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/alpha/${avatarPath}`;
   };
 
@@ -281,8 +280,8 @@ export default function BookingDetails() {
     <div className="flex items-center gap-2">
       <Avatar 
         src={getAvatarUrl(member.avatar)}
-        name={member.name} 
-        size="sm" 
+        name={member.name}
+        size="sm"
       />
       <span>{member.name}</span>
     </div>
@@ -395,17 +394,18 @@ export default function BookingDetails() {
               <div>
                 <span className="font-semibold">Assigned Team:</span>
                 <Select
-                  selectionMode="multiple"
+                  items={teamMembers}
                   placeholder="Select team members"
+                  selectionMode="multiple"
                   selectedKeys={selectedTeamMembers}
                   className="max-w-xs mt-2"
                   onSelectionChange={handleTeamMemberSelection}
                 >
-                  {teamMembers.map((member) => (
+                  {(member) => (
                     <SelectItem key={member.id} textValue={member.name}>
                       {renderTeamMember(member)}
                     </SelectItem>
-                  ))}
+                  )}
                 </Select>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {booking.assigned_to.map((member) => {
@@ -418,8 +418,8 @@ export default function BookingDetails() {
                       >
                         <Avatar 
                           src={getAvatarUrl(teamMember?.avatar)}
-                          name={member.name} 
-                          size="sm" 
+                          name={member.name}
+                          size="sm"
                         />
                         <span className="text-sm">{member.name}</span>
                       </div>
