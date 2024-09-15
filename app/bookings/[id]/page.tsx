@@ -27,6 +27,7 @@ type Booking = {
   payment_method: string | null;
   created_by: string | null;
   state: string | null;
+  images_before: string[] | null;
   images_after: string[] | null;
 };
 
@@ -39,7 +40,8 @@ export default function BookingDetails() {
   const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
   const [amountPaid, setAmountPaid] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [imagesAfter, setImagesAfter] = useState<string[]>([]);
+  const [uploadingBefore, setUploadingBefore] = useState(false);
+  const [uploadingAfter, setUploadingAfter] = useState(false);
 
   useEffect(() => {
     fetchBookingDetails();
@@ -57,25 +59,7 @@ export default function BookingDetails() {
     } else {
       setBooking(data);
       if (data.amount_paid) setAmountPaid(data.amount_paid.toString());
-      
-      // Fetch image URLs for images_after only
-      if (data.images_after) {
-        const afterUrls = await Promise.all(data.images_after.map(getImageUrl));
-        setImagesAfter(afterUrls.filter(Boolean) as string[]);
-      }
     }
-  };
-
-  const getImageUrl = async (path: string) => {
-    const { data } = await supabase.storage
-      .from('alpha')
-      .getPublicUrl(path);
-
-    if (!data) {
-      console.error('Error getting public URL for image');
-      return null;
-    }
-    return data.publicUrl;
   };
 
   const handleDelete = async () => {
@@ -111,6 +95,55 @@ export default function BookingDetails() {
     } else {
       setIsCompleteModalOpen(false);
       fetchBookingDetails();
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const setUploading = type === 'before' ? setUploadingBefore : setUploadingAfter;
+    setUploading(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${booking.id}/${type}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('alpha')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from('alpha')
+        .getPublicUrl(filePath);
+
+      if (!urlData) {
+        throw new Error('Failed to get public URL');
+      }
+
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          [`images_${type}`]: supabase.sql`array_append(images_${type}, ${urlData.publicUrl})`
+        })
+        .eq('id', booking.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Refresh booking details
+      fetchBookingDetails();
+    } catch (error) {
+      console.error(`Error uploading ${type} image:`, error);
+      // You might want to show an error message to the user here
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -241,28 +274,38 @@ export default function BookingDetails() {
 
         <Card className="p-4">
           <CardHeader>
-            <h2 className={title({ size: 'sm' })}>Images</h2>
+            <h2 className={title({ size: 'sm' })}>Images Before</h2>
           </CardHeader>
           <Divider />
           <CardBody>
             <div className="space-y-4">
-              {imagesAfter.length > 0 && (
-                <div>
-                  <span className="font-semibold">Images After:</span>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {imagesAfter.map((image, index) => (
-                      <Image 
-                        key={index} 
-                        src={image} 
-                        alt={`After ${index + 1}`} 
-                        width={96} 
-                        height={96} 
-                        className="object-cover rounded" 
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageUpload(e, 'before')}
+                disabled={uploadingBefore}
+                startContent={<CameraIcon className="w-5 h-5" />}
+              />
+              {uploadingBefore && <p>Uploading...</p>}
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card className="p-4">
+          <CardHeader>
+            <h2 className={title({ size: 'sm' })}>Images After</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody>
+            <div className="space-y-4">
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageUpload(e, 'after')}
+                disabled={uploadingAfter}
+                startContent={<CameraIcon className="w-5 h-5" />}
+              />
+              {uploadingAfter && <p>Uploading...</p>}
             </div>
           </CardBody>
         </Card>
