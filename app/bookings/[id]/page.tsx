@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge } from "@nextui-org/react";
+import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Select, SelectItem, Selection } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, ShareIcon, PencilIcon, CameraIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, ShareIcon, PencilIcon, CameraIcon, PlusIcon, XCircleIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import Image from 'next/image';
@@ -33,6 +33,11 @@ type Booking = {
   images_after: string[] | null;
 };
 
+type TeamMember = {
+  id: string;
+  name: string;
+};
+
 export default function BookingDetails() {
   const params = useParams();
   const router = useRouter();
@@ -47,9 +52,12 @@ export default function BookingDetails() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const fileInputRefAfter = useRef<HTMLInputElement>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [selectedTeamMembers, setSelectedTeamMembers] = useState<Selection>(new Set());
 
   useEffect(() => {
     fetchBookingDetails();
+    fetchTeamMembers();
   }, [bookingId]);
 
   const fetchBookingDetails = async () => {
@@ -64,6 +72,19 @@ export default function BookingDetails() {
     } else {
       setBooking(data);
       if (data.amount_paid) setAmountPaid(data.amount_paid.toString());
+      setSelectedTeamMembers(new Set(data.assigned_to.map((member: { id: string }) => member.id)));
+    }
+  };
+
+  const fetchTeamMembers = async () => {
+    const { data, error } = await supabase
+      .from('team')
+      .select('id, name');
+
+    if (error) {
+      console.error('Error fetching team members:', error);
+    } else {
+      setTeamMembers(data || []);
     }
   };
 
@@ -202,6 +223,56 @@ export default function BookingDetails() {
     return `https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/${src}?width=${width}&quality=${quality || 75}`
   }
 
+  const handleDeleteImage = async (imageUrl: string, type: 'before' | 'after') => {
+    try {
+      const updatedImages = booking?.[`images_${type}`]?.filter(img => img !== imageUrl) || [];
+      
+      const { error } = await supabase
+        .from('bookings')
+        .update({ [`images_${type}`]: updatedImages })
+        .eq('id', booking?.id);
+
+      if (error) throw error;
+
+      // Remove the file from storage
+      const filePath = imageUrl.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/alpha/', '');
+      const { error: deleteError } = await supabase.storage
+        .from('alpha')
+        .remove([filePath]);
+
+      if (deleteError) throw deleteError;
+
+      // Refresh booking details
+      fetchBookingDetails();
+    } catch (error) {
+      console.error(`Error deleting image:`, error);
+      // You might want to show an error message to the user here
+    }
+  };
+
+  const handleTeamMemberSelection = (keys: Selection) => {
+    setSelectedTeamMembers(keys);
+  };
+
+  const updateAssignedTeam = async () => {
+    const selectedIds = Array.from(selectedTeamMembers);
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        assigned_to: selectedIds.map(id => ({
+          id,
+          name: teamMembers.find(member => member.id === id)?.name
+        }))
+      })
+      .eq('id', bookingId);
+
+    if (error) {
+      console.error('Error updating assigned team:', error);
+    } else {
+      fetchBookingDetails(); // Refresh booking details
+    }
+  };
+
   if (!booking) return <div>Loading...</div>;
 
   return (
@@ -308,6 +379,27 @@ export default function BookingDetails() {
               </div>
               <div>
                 <span className="font-semibold">Assigned Team:</span>
+                <Select
+                  selectionMode="multiple"
+                  placeholder="Select team members"
+                  selectedKeys={selectedTeamMembers}
+                  className="max-w-xs mt-2"
+                  onSelectionChange={handleTeamMemberSelection}
+                >
+                  {teamMembers.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </Select>
+                <Button
+                  color="primary"
+                  size="sm"
+                  className="mt-2"
+                  onPress={updateAssignedTeam}
+                >
+                  Update Team
+                </Button>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {booking.assigned_to.map((member, index) => (
                     <Link href={`/team/${member.id}`} key={index}>
@@ -352,16 +444,26 @@ export default function BookingDetails() {
               ) : booking?.images_before && booking.images_before.length > 0 ? (
                 <div className="mt-4 grid grid-cols-3 gap-1">
                   {booking.images_before.map((image, index) => (
-                    <Image 
-                      key={index}
-                      loader={supabaseLoader}
-                      src={image.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/', '')}
-                      alt={`Before ${index + 1}`}
-                      width={150}
-                      height={150}
-                      className="object-cover rounded cursor-pointer w-full h-full"
-                      onClick={() => handleImageClick(image)}
-                    />
+                    <div key={index} className="relative group">
+                      <Image 
+                        loader={supabaseLoader}
+                        src={image.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/', '')}
+                        alt={`Before ${index + 1}`}
+                        width={150}
+                        height={150}
+                        className="object-cover rounded cursor-pointer w-full h-full"
+                        onClick={() => handleImageClick(image)}
+                      />
+                      <button
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteImage(image, 'before');
+                        }}
+                      >
+                        <XCircleIcon className="w-5 h-5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -398,16 +500,26 @@ export default function BookingDetails() {
               ) : booking?.images_after && booking.images_after.length > 0 ? (
                 <div className="mt-4 grid grid-cols-3 gap-1">
                   {booking.images_after.map((image, index) => (
-                    <Image 
-                      key={index}
-                      loader={supabaseLoader}
-                      src={image.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/', '')}
-                      alt={`After ${index + 1}`}
-                      width={150}
-                      height={150}
-                      className="object-cover rounded cursor-pointer w-full h-full"
-                      onClick={() => handleImageClick(image)}
-                    />
+                    <div key={index} className="relative group">
+                      <Image 
+                        loader={supabaseLoader}
+                        src={image.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/', '')}
+                        alt={`After ${index + 1}`}
+                        width={150}
+                        height={150}
+                        className="object-cover rounded cursor-pointer w-full h-full"
+                        onClick={() => handleImageClick(image)}
+                      />
+                      <button
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteImage(image, 'after');
+                        }}
+                      >
+                        <XCircleIcon className="w-5 h-5" />
+                      </button>
+                    </div>
                   ))}
                 </div>
               ) : (
