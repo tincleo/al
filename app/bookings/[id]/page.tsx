@@ -1,62 +1,120 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, ShareIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, ShareIcon, PencilIcon, CameraIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { supabase } from "@/lib/supabaseClient";
+import Image from 'next/image';
 
-// This would typically come from an API or database
-const getBookingDetails = (id: string) => {
-  // Placeholder data
-  return {
-    id: parseInt(id),
-    services: ["Couch Cleaning", "Carpet Cleaning"],
-    location: "123 Main St, New York, NY 10001",
-    date: "2023-06-01T10:00",
-    price: 150,
-    status: "scheduled",
-    assignedTo: [
-      { name: "John Doe", avatar: "https://i.pravatar.cc/150?u=a042581f4e29026704d" },
-      { name: "Jane Smith", avatar: "https://i.pravatar.cc/150?u=a042581f4e29026024d" }
-    ],
-    phone: "123-456-7890",
-    priority: false,
-    moreInfo: "Customer requested extra care for antique furniture",
-  };
+type Booking = {
+  id: number;
+  created_at: string;
+  services: string[];
+  location: string;
+  address: string;
+  planned_at: string;
+  price: number;
+  status: string;
+  assigned_to: { name: string; id: string }[];
+  client_phone: string;
+  priority: boolean;
+  more_info: string | null;
+  completed_at: string | null;
+  amount_paid: number | null;
+  payment_method: string | null;
+  created_by: string | null;
+  state: string | null;
+  images_after: string[] | null;
 };
 
 export default function BookingDetails() {
   const params = useParams();
   const router = useRouter();
   const bookingId = params.id as string;
-  const booking = getBookingDetails(bookingId);
-  const [isCompleteModalOpen, setIsCompleteModalOpen] = React.useState(false);
-  const [completionDate, setCompletionDate] = React.useState(new Date().toISOString().split('T')[0]);
-  const [amountPaid, setAmountPaid] = React.useState(booking.price.toString());
-  const [paymentMethod, setPaymentMethod] = React.useState("cash");
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [completionDate, setCompletionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [amountPaid, setAmountPaid] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [imagesAfter, setImagesAfter] = useState<string[]>([]);
 
-  const handleDelete = () => {
-    // Implement delete logic here
-    console.log("Deleting booking:", bookingId);
-    // After deletion, navigate back to bookings list
-    router.push('/bookings');
+  useEffect(() => {
+    fetchBookingDetails();
+  }, [bookingId]);
+
+  const fetchBookingDetails = async () => {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('id', bookingId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching booking details:', error);
+    } else {
+      setBooking(data);
+      if (data.amount_paid) setAmountPaid(data.amount_paid.toString());
+      
+      // Fetch image URLs for images_after only
+      if (data.images_after) {
+        const afterUrls = await Promise.all(data.images_after.map(getImageUrl));
+        setImagesAfter(afterUrls.filter(Boolean) as string[]);
+      }
+    }
+  };
+
+  const getImageUrl = async (path: string) => {
+    const { data } = await supabase.storage
+      .from('alpha')
+      .getPublicUrl(path);
+
+    if (!data) {
+      console.error('Error getting public URL for image');
+      return null;
+    }
+    return data.publicUrl;
+  };
+
+  const handleDelete = async () => {
+    const { error } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', bookingId);
+
+    if (error) {
+      console.error('Error deleting booking:', error);
+    } else {
+      router.push('/bookings');
+    }
   };
 
   const handleMarkAsCompleted = () => {
     setIsCompleteModalOpen(true);
   };
 
-  const handleConfirmCompletion = () => {
-    // Implement completion logic here
-    console.log("Marking booking as completed:", bookingId);
-    console.log("Completion date:", completionDate);
-    console.log("Amount paid:", amountPaid);
-    console.log("Payment method:", paymentMethod);
-    setIsCompleteModalOpen(false);
-    // After completion, you might want to refresh the booking data or navigate
+  const handleConfirmCompletion = async () => {
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        status: 'completed',
+        completed_at: completionDate,
+        amount_paid: parseFloat(amountPaid),
+        payment_method: paymentMethod
+      })
+      .eq('id', bookingId);
+
+    if (error) {
+      console.error('Error updating booking:', error);
+    } else {
+      setIsCompleteModalOpen(false);
+      fetchBookingDetails();
+    }
   };
+
+  if (!booking) return <div>Loading...</div>;
 
   return (
     <div className="space-y-6">
@@ -66,7 +124,7 @@ export default function BookingDetails() {
             content="Priority"
             color="danger"
             placement="top-right"
-            // Remove isInvisible prop to always show the badge
+            isInvisible={!booking.priority}
           >
             <h1 className={title({ size: "md" })}>
               Booking Details
@@ -106,12 +164,17 @@ export default function BookingDetails() {
               <div className="flex items-center space-x-2">
                 <CalendarIcon className="w-5 h-5 text-primary" />
                 <span className="font-semibold">Planned for:</span>
-                <span>{new Date(booking.date).toLocaleString()}</span>
+                <span>{new Date(booking.planned_at).toLocaleString()}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <MapPinIcon className="w-5 h-5 text-primary" />
                 <span className="font-semibold">Location:</span>
                 <span>{booking.location}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <MapPinIcon className="w-5 h-5 text-primary" />
+                <span className="font-semibold">Address:</span>
+                <span>{booking.address}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <CurrencyDollarIcon className="w-5 h-5 text-primary" />
@@ -124,14 +187,14 @@ export default function BookingDetails() {
                 <Dropdown>
                   <DropdownTrigger>
                     <Button variant="bordered" size="md">
-                      {booking.phone}
+                      {booking.client_phone}
                     </Button>
                   </DropdownTrigger>
                   <DropdownMenu aria-label="Phone Actions">
-                    <DropdownItem key="call" onPress={() => window.location.href = `tel:${booking.phone}`}>
+                    <DropdownItem key="call" onPress={() => window.location.href = `tel:${booking.client_phone}`}>
                       Call
                     </DropdownItem>
-                    <DropdownItem key="whatsapp" onPress={() => window.open(`https://wa.me/237${booking.phone.replace(/\D/g,'')}`, '_blank')}>
+                    <DropdownItem key="whatsapp" onPress={() => window.open(`https://wa.me/${booking.client_phone.replace(/\D/g,'')}`, '_blank')}>
                       WhatsApp
                     </DropdownItem>
                   </DropdownMenu>
@@ -153,21 +216,53 @@ export default function BookingDetails() {
                   <InformationCircleIcon className="w-5 h-5 text-primary" />
                   <span className="font-semibold">Notes:</span>
                 </div>
-                <p className="text-gray-600 dark:text-gray-300">{booking.moreInfo}</p>
+                <p className="text-gray-600 dark:text-gray-300">{booking.more_info || 'No additional information'}</p>
               </div>
               <div>
                 <span className="font-semibold">Assigned Team:</span>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {booking.assignedTo.map((member, index) => (
-                    <Link href={`/team/${member.name.toLowerCase().replace(' ', '-')}`} key={index}>
+                  {booking.assigned_to.map((member, index) => (
+                    <Link href={`/team/${member.id}`} key={index}>
                       <div className="flex items-center space-x-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                        <Avatar src={member.avatar} size="sm" />
+                        <Avatar name={member.name} size="sm" />
                         <span className="text-sm">{member.name}</span>
                       </div>
                     </Link>
                   ))}
                 </div>
               </div>
+              <div>
+                <span className="font-semibold">State:</span>
+                <span>{booking.state || 'Not specified'}</span>
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card className="p-4">
+          <CardHeader>
+            <h2 className={title({ size: 'sm' })}>Images</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody>
+            <div className="space-y-4">
+              {imagesAfter.length > 0 && (
+                <div>
+                  <span className="font-semibold">Images After:</span>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {imagesAfter.map((image, index) => (
+                      <Image 
+                        key={index} 
+                        src={image} 
+                        alt={`After ${index + 1}`} 
+                        width={96} 
+                        height={96} 
+                        className="object-cover rounded" 
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CardBody>
         </Card>
@@ -175,11 +270,13 @@ export default function BookingDetails() {
 
       <div className="flex justify-between items-center">
         <span className="text-sm text-gray-500">
-          Created on: {new Date().toLocaleDateString()} by John Doe
+          Created on: {new Date(booking.created_at).toLocaleDateString()} by {booking.created_by || 'Unknown'}
         </span>
-        <Button color="primary" size="lg" onPress={handleMarkAsCompleted}>
-          Mark as Completed
-        </Button>
+        {booking.status !== 'completed' && (
+          <Button color="primary" size="lg" onPress={handleMarkAsCompleted}>
+            Mark as Completed
+          </Button>
+        )}
       </div>
 
       <Modal 

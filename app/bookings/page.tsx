@@ -33,6 +33,7 @@ import { title } from "../components/primitives";
 import { NewBookingForm } from "../components/NewBookingForm";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from 'next/navigation';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   scheduled: "primary",
@@ -94,6 +95,7 @@ export default function BookingsPage() {
 
   const [page, setPage] = React.useState(1);
   const [isModalOpen, setIsModalOpen] = React.useState(false);
+  const router = useRouter();
 
   const hasSearchFilter = Boolean(filterValue);
 
@@ -179,14 +181,16 @@ export default function BookingsPage() {
       case "assigned_to":
         return (
           <div className="flex flex-wrap gap-2">
-            {(Array.isArray(cellValue) ? cellValue : [cellValue]).map((member, index) => (
-              <Link 
-                href={`/team/${member.id}`} 
-                key={index}
-                className="text-white hover:underline"
-              >
-                {member.name}
-              </Link>
+            {(Array.isArray(cellValue) ? cellValue : []).map((member, index) => (
+              typeof member === 'object' && member !== null ? (
+                <Link 
+                  href={`/team/${member.id}`} 
+                  key={index}
+                  className="text-white hover:underline"
+                >
+                  {member.name}
+                </Link>
+              ) : null
             ))}
           </div>
         );
@@ -214,7 +218,9 @@ export default function BookingsPage() {
                 </Button>
               </DropdownTrigger>
               <DropdownMenu>
-                <DropdownItem>View</DropdownItem>
+                <DropdownItem onPress={() => router.push(`/bookings/${booking.id}`)}>
+                  View
+                </DropdownItem>
                 <DropdownItem>Edit</DropdownItem>
                 <DropdownItem>Delete</DropdownItem>
               </DropdownMenu>
@@ -224,7 +230,7 @@ export default function BookingsPage() {
       default:
         return cellValue as React.ReactNode;
     }
-  }, []);
+  }, [router]);
 
   const onNextPage = React.useCallback(() => {
     if (page < pages) {
