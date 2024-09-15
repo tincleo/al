@@ -36,6 +36,7 @@ type Booking = {
 type TeamMember = {
   id: string;
   name: string;
+  avatar: string | null;
 };
 
 export default function BookingDetails() {
@@ -79,7 +80,7 @@ export default function BookingDetails() {
   const fetchTeamMembers = async () => {
     const { data, error } = await supabase
       .from('team')
-      .select('id, name');
+      .select('id, name, avatar');
 
     if (error) {
       console.error('Error fetching team members:', error);
@@ -271,9 +272,18 @@ export default function BookingDetails() {
     }
   };
 
+  const getAvatarUrl = (avatarPath: string | null) => {
+    if (!avatarPath) return null;
+    return `https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/alpha/${avatarPath}`;
+  };
+
   const renderTeamMember = (member: TeamMember) => (
     <div className="flex items-center gap-2">
-      <Avatar name={member.name} size="sm" />
+      <Avatar 
+        src={getAvatarUrl(member.avatar)}
+        name={member.name} 
+        size="sm" 
+      />
       <span>{member.name}</span>
     </div>
   );
@@ -398,16 +408,23 @@ export default function BookingDetails() {
                   ))}
                 </Select>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {booking.assigned_to.map((member) => (
-                    <div
-                      key={member.id}
-                      className="flex items-center space-x-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/team/${member.id}`)}
-                    >
-                      <Avatar name={member.name} size="sm" />
-                      <span className="text-sm">{member.name}</span>
-                    </div>
-                  ))}
+                  {booking.assigned_to.map((member) => {
+                    const teamMember = teamMembers.find(tm => tm.id === member.id);
+                    return (
+                      <div
+                        key={member.id}
+                        className="flex items-center space-x-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        onClick={() => router.push(`/team/${member.id}`)}
+                      >
+                        <Avatar 
+                          src={getAvatarUrl(teamMember?.avatar)}
+                          name={member.name} 
+                          size="sm" 
+                        />
+                        <span className="text-sm">{member.name}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <div>
