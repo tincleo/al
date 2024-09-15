@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, ShareIcon, PencilIcon, CameraIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, ShareIcon, PencilIcon, CameraIcon, PlusIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import Image from 'next/image';
+import { useDropzone } from 'react-dropzone';
+import { Spinner } from "@nextui-org/react";
 
 type Booking = {
   id: number;
@@ -42,6 +44,9 @@ export default function BookingDetails() {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [uploadingBefore, setUploadingBefore] = useState(false);
   const [uploadingAfter, setUploadingAfter] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRefAfter = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchBookingDetails();
@@ -98,40 +103,46 @@ export default function BookingDetails() {
     }
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const handleImageUpload = async (files: File[], type: 'before' | 'after') => {
     const setUploading = type === 'before' ? setUploadingBefore : setUploadingAfter;
     setUploading(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
-      const filePath = `${booking.id}/${type}/${fileName}`;
+      const uploadedUrls = await Promise.all(
+        files.map(async (file) => {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Math.random()}.${fileExt}`;
+          const filePath = `${booking?.id}/${type}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from('alpha')
-        .upload(filePath, file);
+          const { error: uploadError } = await supabase.storage
+            .from('alpha')
+            .upload(filePath, file);
 
-      if (uploadError) {
-        throw uploadError;
-      }
+          if (uploadError) {
+            throw uploadError;
+          }
 
-      const { data: urlData } = supabase.storage
-        .from('alpha')
-        .getPublicUrl(filePath);
+          const { data: urlData } = supabase.storage
+            .from('alpha')
+            .getPublicUrl(filePath);
 
-      if (!urlData) {
-        throw new Error('Failed to get public URL');
-      }
+          if (!urlData) {
+            throw new Error('Failed to get public URL');
+          }
+
+          return urlData.publicUrl;
+        })
+      );
+
+      const currentImages = booking?.[`images_${type}` as keyof typeof booking] as string[] || [];
+      const updatedImages = [...currentImages, ...uploadedUrls];
 
       const { error: updateError } = await supabase
         .from('bookings')
         .update({
-          [`images_${type}`]: supabase.sql`array_append(images_${type}, ${urlData.publicUrl})`
+          [`images_${type}`]: updatedImages
         })
-        .eq('id', booking.id);
+        .eq('id', booking?.id);
 
       if (updateError) {
         throw updateError;
@@ -140,12 +151,56 @@ export default function BookingDetails() {
       // Refresh booking details
       fetchBookingDetails();
     } catch (error) {
-      console.error(`Error uploading ${type} image:`, error);
+      console.error(`Error uploading ${type} images:`, error);
       // You might want to show an error message to the user here
     } finally {
       setUploading(false);
     }
   };
+
+  const handleImageClick = (imageSrc: string) => {
+    setSelectedImage(imageSrc);
+  };
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      handleImageUpload(Array.from(files), 'before');
+    }
+  };
+
+  const openFilePicker = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const { getRootProps: getRootPropsBefore, getInputProps: getInputPropsBefore } = useDropzone({ 
+    onDrop: (acceptedFiles: File[]) => handleImageUpload(acceptedFiles, 'before'),
+    noClick: true, // Prevents the default click behavior
+  });
+
+  const handleFileInputChangeAfter = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      handleImageUpload(Array.from(files), 'after');
+    }
+  };
+
+  const openFilePickerAfter = () => {
+    if (fileInputRefAfter.current) {
+      fileInputRefAfter.current.click();
+    }
+  };
+
+  const { getRootProps: getRootPropsAfter, getInputProps: getInputPropsAfter } = useDropzone({ 
+    onDrop: (acceptedFiles: File[]) => handleImageUpload(acceptedFiles, 'after'),
+    noClick: true, // Prevents the default click behavior
+  });
+
+  const supabaseLoader = ({ src, width, quality }: { src: string; width: number; quality?: number }) => {
+    return `https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/${src}?width=${width}&quality=${quality || 75}`
+  }
 
   if (!booking) return <div>Loading...</div>;
 
@@ -273,41 +328,95 @@ export default function BookingDetails() {
         </Card>
 
         <Card className="p-4">
-          <CardHeader>
-            <h2 className={title({ size: 'sm' })}>Images Before</h2>
-          </CardHeader>
-          <Divider />
-          <CardBody>
-            <div className="space-y-4">
-              <Input
+          <div {...getRootPropsBefore()} className="h-full">
+            <CardHeader className="flex justify-between items-center">
+              <h2 className={title({ size: 'sm' })}>Images Before</h2>
+              <Button isIconOnly size="sm" variant="light" onPress={openFilePicker}>
+                <PlusIcon className="w-6 h-6" />
+              </Button>
+            </CardHeader>
+            <Divider />
+            <CardBody>
+              <input
+                ref={fileInputRef}
                 type="file"
+                multiple
                 accept="image/*"
-                onChange={(e) => handleImageUpload(e, 'before')}
-                disabled={uploadingBefore}
-                startContent={<CameraIcon className="w-5 h-5" />}
+                style={{ display: 'none' }}
+                onChange={handleFileInputChange}
               />
-              {uploadingBefore && <p>Uploading...</p>}
-            </div>
-          </CardBody>
+              {uploadingBefore ? (
+                <div className="flex justify-center items-center h-40">
+                  <Spinner label="Uploading..." color="primary" />
+                </div>
+              ) : booking?.images_before && booking.images_before.length > 0 ? (
+                <div className="mt-4 grid grid-cols-3 gap-1">
+                  {booking.images_before.map((image, index) => (
+                    <Image 
+                      key={index}
+                      loader={supabaseLoader}
+                      src={image.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/', '')}
+                      alt={`Before ${index + 1}`}
+                      width={150}
+                      height={150}
+                      className="object-cover rounded cursor-pointer w-full h-full"
+                      onClick={() => handleImageClick(image)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex justify-center items-center h-40 text-gray-400">
+                  <p>No images uploaded yet</p>
+                </div>
+              )}
+            </CardBody>
+          </div>
         </Card>
 
         <Card className="p-4">
-          <CardHeader>
-            <h2 className={title({ size: 'sm' })}>Images After</h2>
-          </CardHeader>
-          <Divider />
-          <CardBody>
-            <div className="space-y-4">
-              <Input
+          <div {...getRootPropsAfter()} className="h-full">
+            <CardHeader className="flex justify-between items-center">
+              <h2 className={title({ size: 'sm' })}>Images After</h2>
+              <Button isIconOnly size="sm" variant="light" onPress={openFilePickerAfter}>
+                <PlusIcon className="w-6 h-6" />
+              </Button>
+            </CardHeader>
+            <Divider />
+            <CardBody>
+              <input
+                ref={fileInputRefAfter}
                 type="file"
+                multiple
                 accept="image/*"
-                onChange={(e) => handleImageUpload(e, 'after')}
-                disabled={uploadingAfter}
-                startContent={<CameraIcon className="w-5 h-5" />}
+                style={{ display: 'none' }}
+                onChange={handleFileInputChangeAfter}
               />
-              {uploadingAfter && <p>Uploading...</p>}
-            </div>
-          </CardBody>
+              {uploadingAfter ? (
+                <div className="flex justify-center items-center h-40">
+                  <Spinner label="Uploading..." color="primary" />
+                </div>
+              ) : booking?.images_after && booking.images_after.length > 0 ? (
+                <div className="mt-4 grid grid-cols-3 gap-1">
+                  {booking.images_after.map((image, index) => (
+                    <Image 
+                      key={index}
+                      loader={supabaseLoader}
+                      src={image.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/', '')}
+                      alt={`After ${index + 1}`}
+                      width={150}
+                      height={150}
+                      className="object-cover rounded cursor-pointer w-full h-full"
+                      onClick={() => handleImageClick(image)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex justify-center items-center h-40 text-gray-400">
+                  <p>No images uploaded yet</p>
+                </div>
+              )}
+            </CardBody>
+          </div>
         </Card>
       </div>
 
@@ -367,6 +476,28 @@ export default function BookingDetails() {
               Confirm
             </Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Image enlargement modal */}
+      <Modal 
+        isOpen={!!selectedImage} 
+        onClose={() => setSelectedImage(null)}
+        size="5xl"
+      >
+        <ModalContent>
+          <ModalBody>
+            {selectedImage && (
+              <Image
+                loader={supabaseLoader}
+                src={selectedImage.replace('https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/', '')}
+                alt="Enlarged image"
+                width={1000}
+                height={1000}
+                className="object-contain w-full h-full"
+              />
+            )}
+          </ModalBody>
         </ModalContent>
       </Modal>
     </div>
