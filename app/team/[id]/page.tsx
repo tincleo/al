@@ -337,7 +337,6 @@ export default function TeamMemberDetails() {
 
   return (
     <>
-      <TopMenu userName={member.name} />
       <div className="space-y-6">
         <Toaster position="top-center" reverseOrder={false} />
 
@@ -418,7 +417,7 @@ export default function TeamMemberDetails() {
                 <div className="flex items-center space-x-4">
                   <div className="relative group">
                     <Avatar 
-                      src={member.avatar || undefined} 
+                      src={member.avatar}
                       size="lg" 
                       showFallback 
                       alt={`${member.name}'s avatar`}

@@ -46,8 +46,8 @@ export default function RootLayout({
           <div className="relative flex min-h-screen">
             <Sidebar />
             <div className="flex-1 flex flex-col ml-64">
-              <TopMenu /> {/* Add the TopMenu component here */}
-              <main className="flex-1 overflow-y-auto p-4"> {/* Add padding here */}
+              <TopMenu /> {/* Keep this line */}
+              <main className="flex-1 overflow-y-auto p-4">
                 {children}
               </main>
             </div>

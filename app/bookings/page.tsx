@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   Table,
   TableHeader,
@@ -32,6 +32,7 @@ import { capitalize } from "../utils";
 import { title } from "../components/primitives";
 import { NewBookingForm } from "../components/NewBookingForm";
 import Link from "next/link";
+import { supabase } from "@/lib/supabaseClient";
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   scheduled: "primary",
@@ -41,16 +42,16 @@ const statusColorMap: Record<string, ChipProps["color"]> = {
 };
 
 const columns = [
-  { name: "CREATED", uid: "created", sortable: true },
+  { name: "CREATED", uid: "created_at", sortable: true },
   { name: "ID", uid: "id", sortable: true },
   { name: "SERVICES", uid: "services", sortable: true },
   { name: "LOCATION", uid: "location", sortable: true },
   { name: "ADDRESS", uid: "address", sortable: true },
-  { name: "PLANNED", uid: "planned", sortable: true },
+  { name: "PLANNED", uid: "planned_at", sortable: true },
   { name: "PRICE", uid: "price", sortable: true },
   { name: "STATUS", uid: "status", sortable: true },
-  { name: "ASSIGNED TO", uid: "assignedTo", sortable: true },
-  { name: "PHONE", uid: "phone", sortable: true },
+  { name: "ASSIGNED TO", uid: "assigned_to", sortable: true },
+  { name: "PHONE", uid: "client_phone", sortable: true },
   { name: "ACTIONS", uid: "actions" },
 ];
 
@@ -61,181 +62,26 @@ const statusOptions = [
   { name: "Canceled", uid: "canceled" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["created", "services", "location", "address", "planned", "price", "status", "assignedTo", "phone", "actions"];
+const INITIAL_VISIBLE_COLUMNS = ["created_at", "services", "location", "address", "planned_at", "price", "status", "assigned_to", "client_phone", "actions"];
 
 type Booking = {
   id: number;
-  created: string;
+  created_at: string;
   services: string[];
   location: string;
   address: string;
-  planned: string;
+  planned_at: string;
   price: number;
   status: string;
-  assignedTo: { name: string; id: string }[];
-  phone: string;
+  assigned_to: { name: string; id: string }[];
+  client_phone: string;
   priority: boolean;
-  moreInfo: string;
+  more_info: string;
 };
 
-const bookings: Booking[] = [
-  {
-    id: 1,
-    created: "2023-05-30T09:00",
-    services: ["Couches", "Carpets"],
-    location: "New York",
-    address: "123 Main St, New York, NY 10001",
-    planned: "2023-06-01T10:00",
-    price: 150,
-    status: "scheduled",
-    assignedTo: [{ name: "Arnauld", id: "arnauld" }, { name: "Prosper", id: "prosper" }],
-    phone: "123-456-7890",
-    priority: false,
-    moreInfo: "Customer requested extra care for antique furniture",
-  },
-  {
-    id: 2,
-    created: "2023-05-31T11:30",
-    services: ["Office Cleaning"],
-    location: "Los Angeles",
-    address: "456 Business Ave, Los Angeles, CA 90001",
-    planned: "2023-06-02T09:00",
-    price: 300,
-    status: "confirmed",
-    assignedTo: [{ name: "Michel", id: "michel" }, { name: "Sarah", id: "sarah" }],
-    phone: "987-654-3210",
-    priority: true,
-    moreInfo: "Large office space, requires team of 4",
-  },
-  {
-    id: 3,
-    created: "2023-06-01T08:45",
-    services: ["Window Cleaning", "Pressure Washing"],
-    location: "Chicago",
-    address: "789 Lake St, Chicago, IL 60601",
-    planned: "2023-06-03T13:00",
-    price: 250,
-    status: "scheduled",
-    assignedTo: [{ name: "John", id: "john" }],
-    phone: "555-123-4567",
-    priority: false,
-    moreInfo: "Three-story building, safety equipment required",
-  },
-  {
-    id: 4,
-    created: "2023-06-02T14:20",
-    services: ["Deep Cleaning"],
-    location: "Houston",
-    address: "321 Oak Rd, Houston, TX 77001",
-    planned: "2023-06-04T10:00",
-    price: 200,
-    status: "confirmed",
-    assignedTo: [{ name: "Emma", id: "emma" }, { name: "Luis", id: "luis" }],
-    phone: "832-555-1234",
-    priority: false,
-    moreInfo: "Post-construction cleaning, dust protection needed",
-  },
-  {
-    id: 5,
-    created: "2023-06-03T09:10",
-    services: ["Carpet Cleaning", "Upholstery Cleaning"],
-    location: "Miami",
-    address: "555 Beach Blvd, Miami, FL 33101",
-    planned: "2023-06-05T11:30",
-    price: 180,
-    status: "scheduled",
-    assignedTo: [{ name: "Olivia", id: "olivia" }],
-    phone: "305-555-6789",
-    priority: true,
-    moreInfo: "Pet-friendly cleaning products requested",
-  },
-  {
-    id: 6,
-    created: "2023-06-04T16:00",
-    services: ["Move-out Cleaning"],
-    location: "Seattle",
-    address: "777 Pine St, Seattle, WA 98101",
-    planned: "2023-06-06T09:00",
-    price: 275,
-    status: "confirmed",
-    assignedTo: [{ name: "Ethan", id: "ethan" }, { name: "Zoe", id: "zoe" }],
-    phone: "206-555-9876",
-    priority: false,
-    moreInfo: "Large apartment, needs to be ready for new tenants",
-  },
-  {
-    id: 7,
-    created: "2023-06-05T10:30",
-    services: ["Commercial Kitchen Cleaning"],
-    location: "Boston",
-    address: "888 Restaurant Row, Boston, MA 02101",
-    planned: "2023-06-07T22:00",
-    price: 400,
-    status: "scheduled",
-    assignedTo: [{ name: "Chris", id: "chris" }, { name: "Maria", id: "maria" }],
-    phone: "617-555-3456",
-    priority: true,
-    moreInfo: "After-hours cleaning, industrial equipment handling required",
-  },
-  {
-    id: 8,
-    created: "2023-06-06T13:15",
-    services: ["Residential Deep Cleaning"],
-    location: "San Francisco",
-    address: "999 Hill St, San Francisco, CA 94101",
-    planned: "2023-06-08T14:00",
-    price: 220,
-    status: "confirmed",
-    assignedTo: [{ name: "Alex", id: "alex" }],
-    phone: "415-555-7890",
-    priority: false,
-    moreInfo: "Eco-friendly products requested, focus on allergen removal",
-  },
-  {
-    id: 9,
-    created: "2023-06-07T11:45",
-    services: ["Pool Area Cleaning"],
-    location: "Phoenix",
-    address: "111 Desert Rd, Phoenix, AZ 85001",
-    planned: "2023-06-09T08:00",
-    price: 150,
-    status: "scheduled",
-    assignedTo: [{ name: "Daniel", id: "daniel" }],
-    phone: "602-555-2345",
-    priority: false,
-    moreInfo: "Includes deck cleaning and furniture arrangement",
-  },
-  {
-    id: 10,
-    created: "2023-06-08T15:30",
-    services: ["Post-Event Cleanup"],
-    location: "Las Vegas",
-    address: "222 Casino Ave, Las Vegas, NV 89101",
-    planned: "2023-06-10T01:00",
-    price: 500,
-    status: "confirmed",
-    assignedTo: [{ name: "Sophia", id: "sophia" }, { name: "Jack", id: "jack" }, { name: "Mia", id: "mia" }],
-    phone: "702-555-6789",
-    priority: true,
-    moreInfo: "Large convention center, tight deadline before next event",
-  },
-  {
-    id: 11,
-    created: "2023-06-09T09:00",
-    services: ["School Cleaning"],
-    location: "Denver",
-    address: "333 Education Blvd, Denver, CO 80201",
-    planned: "2023-06-11T15:00",
-    price: 350,
-    status: "scheduled",
-    assignedTo: [{ name: "Ryan", id: "ryan" }, { name: "Emily", id: "emily" }],
-    phone: "303-555-1111",
-    priority: false,
-    moreInfo: "Summer break deep clean, includes classroom and gym areas",
-  },
-];
-
 export default function BookingsPage() {
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterValue, setFilterValue] = React.useState("");
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]));
   const [visibleColumns, setVisibleColumns] = React.useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
@@ -256,6 +102,25 @@ export default function BookingsPage() {
 
     return columns.filter((column) => Array.from(visibleColumns).includes(column.uid));
   }, [visibleColumns]);
+
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  const fetchBookings = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching bookings:', error);
+    } else {
+      setBookings(data || []);
+    }
+    setLoading(false);
+  };
 
   const filteredItems = React.useMemo(() => {
     let filteredBookings = [...bookings];
@@ -298,8 +163,8 @@ export default function BookingsPage() {
     const cellValue = booking[columnKey as keyof Booking];
 
     switch (columnKey) {
-      case "created":
-      case "planned":
+      case "created_at":
+      case "planned_at":
         return new Date(cellValue as string).toLocaleString();
       case "services":
         return (cellValue as string[]).join(", ");
@@ -311,10 +176,10 @@ export default function BookingsPage() {
             {cellValue as string}
           </Chip>
         );
-      case "assignedTo":
+      case "assigned_to":
         return (
           <div className="flex flex-wrap gap-2">
-            {(cellValue as { name: string; id: string }[]).map((member, index) => (
+            {(Array.isArray(cellValue) ? cellValue : [cellValue]).map((member, index) => (
               <Link 
                 href={`/team/${member.id}`} 
                 key={index}
@@ -325,7 +190,7 @@ export default function BookingsPage() {
             ))}
           </div>
         );
-      case "phone":
+      case "client_phone":
         return (
           <Dropdown>
             <DropdownTrigger>
@@ -508,39 +373,43 @@ export default function BookingsPage() {
   return (
     <section className="flex flex-col gap-4">
       <h1 className={title({ size: "sm" })}>Bookings</h1>
-      <Table
-        aria-label="Example table with custom cells, pagination and sorting"
-        isHeaderSticky
-        bottomContent={bottomContent}
-        bottomContentPlacement="outside"
-        classNames={{
-          wrapper: "max-h-[calc(100vh-200px)]",
-          table: "min-h-[400px]",
-        }}
-        sortDescriptor={sortDescriptor}
-        topContent={topContent}
-        topContentPlacement="outside"
-        onSortChange={setSortDescriptor}
-      >
-        <TableHeader columns={headerColumns}>
-          {(column) => (
-            <TableColumn
-              key={column.uid}
-              align={column.uid === "actions" ? "center" : "start"}
-              allowsSorting={column.sortable}
-            >
-              {column.name}
-            </TableColumn>
-          )}
-        </TableHeader>
-        <TableBody emptyContent={"No bookings found"} items={sortedItems}>
-          {(item) => (
-            <TableRow key={item.id}>
-              {(columnKey) => <TableCell>{renderCell(item, columnKey)}</TableCell>}
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+      {loading ? (
+        <p>Loading bookings...</p>
+      ) : (
+        <Table
+          aria-label="Example table with custom cells, pagination and sorting"
+          isHeaderSticky
+          bottomContent={bottomContent}
+          bottomContentPlacement="outside"
+          classNames={{
+            wrapper: "max-h-[calc(100vh-200px)]",
+            table: "min-h-[400px]",
+          }}
+          sortDescriptor={sortDescriptor}
+          topContent={topContent}
+          topContentPlacement="outside"
+          onSortChange={setSortDescriptor}
+        >
+          <TableHeader columns={headerColumns}>
+            {(column) => (
+              <TableColumn
+                key={column.uid}
+                align={column.uid === "actions" ? "center" : "start"}
+                allowsSorting={column.sortable}
+              >
+                {column.name}
+              </TableColumn>
+            )}
+          </TableHeader>
+          <TableBody emptyContent={"No bookings found"} items={sortedItems}>
+            {(item) => (
+              <TableRow key={item.id}>
+                {(columnKey) => <TableCell>{renderCell(item, columnKey)}</TableCell>}
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      )}
 
       <Modal 
         size="3xl" 
