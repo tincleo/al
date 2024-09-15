@@ -250,12 +250,10 @@ export default function BookingDetails() {
     }
   };
 
-  const handleTeamMemberSelection = (keys: Selection) => {
-    setSelectedTeamMembers(keys);
-  };
+  const handleTeamMemberSelection = async (keys: Selection) => {
+    const selectedIds = Array.from(keys) as string[];
+    setSelectedTeamMembers(new Set(selectedIds));
 
-  const updateAssignedTeam = async () => {
-    const selectedIds = Array.from(selectedTeamMembers);
     const { error } = await supabase
       .from('bookings')
       .update({
@@ -272,6 +270,13 @@ export default function BookingDetails() {
       fetchBookingDetails(); // Refresh booking details
     }
   };
+
+  const renderTeamMember = (member: TeamMember) => (
+    <div className="flex items-center gap-2">
+      <Avatar name={member.name} size="sm" />
+      <span>{member.name}</span>
+    </div>
+  );
 
   if (!booking) return <div>Loading...</div>;
 
@@ -387,27 +392,21 @@ export default function BookingDetails() {
                   onSelectionChange={handleTeamMemberSelection}
                 >
                   {teamMembers.map((member) => (
-                    <SelectItem key={member.id} value={member.id}>
-                      {member.name}
+                    <SelectItem key={member.id} textValue={member.name}>
+                      {renderTeamMember(member)}
                     </SelectItem>
                   ))}
                 </Select>
-                <Button
-                  color="primary"
-                  size="sm"
-                  className="mt-2"
-                  onPress={updateAssignedTeam}
-                >
-                  Update Team
-                </Button>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {booking.assigned_to.map((member, index) => (
-                    <Link href={`/team/${member.id}`} key={index}>
-                      <div className="flex items-center space-x-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                        <Avatar name={member.name} size="sm" />
-                        <span className="text-sm">{member.name}</span>
-                      </div>
-                    </Link>
+                  {booking.assigned_to.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center space-x-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/team/${member.id}`)}
+                    >
+                      <Avatar name={member.name} size="sm" />
+                      <span className="text-sm">{member.name}</span>
+                    </div>
                   ))}
                 </div>
               </div>
