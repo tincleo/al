@@ -417,7 +417,7 @@ export default function BookingDetails() {
                         onClick={() => router.push(`/team/${member.id}`)}
                       >
                         <Avatar 
-                          src={getAvatarUrl(teamMember?.avatar)}
+                          src={getAvatarUrl(teamMember?.avatar ?? null)}
                           name={member.name}
                           size="sm"
                         />

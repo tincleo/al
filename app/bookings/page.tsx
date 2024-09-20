@@ -23,6 +23,8 @@ import {
   ModalContent,
   ModalHeader,
   ModalBody,
+  Avatar,
+  AvatarGroup,
 } from "@nextui-org/react";
 import { PlusIcon } from "../components/PlusIcon";
 import { VerticalDotsIcon } from "../components/VerticalDotsIcon";
@@ -34,6 +36,8 @@ import { NewBookingForm } from "../components/NewBookingForm";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from 'next/navigation';
+import { formatDate } from "../utils"; // Assume we'll create this function
+import { formatPrice } from "../utils"; // We'll create this function
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   scheduled: "primary",
@@ -63,7 +67,7 @@ const statusOptions = [
   { name: "Canceled", uid: "canceled" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["created_at", "services", "location", "address", "planned_at", "price", "status", "assigned_to", "client_phone", "actions"];
+const INITIAL_VISIBLE_COLUMNS = ["created_at", "services", "location", "planned_at", "price", "status", "assigned_to", "client_phone", "actions"];
 
 type Booking = {
   id: number;
@@ -87,7 +91,7 @@ export default function BookingsPage() {
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]));
   const [visibleColumns, setVisibleColumns] = React.useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
   const [statusFilter, setStatusFilter] = React.useState<Selection>("all");
-  const [rowsPerPage, setRowsPerPage] = React.useState(10);
+  const [rowsPerPage, setRowsPerPage] = React.useState(10); // Set default to 10 rows
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
     column: "date",
     direction: "ascending",
@@ -167,11 +171,11 @@ export default function BookingsPage() {
     switch (columnKey) {
       case "created_at":
       case "planned_at":
-        return new Date(cellValue as string).toLocaleString();
+        return formatDate(cellValue as string);
       case "services":
         return (cellValue as string[]).join(", ");
       case "price":
-        return `$${cellValue}`;
+        return formatPrice(cellValue as number);
       case "status":
         return (
           <Chip className="capitalize" color={statusColorMap[booking.status]} size="sm" variant="flat">
@@ -180,19 +184,18 @@ export default function BookingsPage() {
         );
       case "assigned_to":
         return (
-          <div className="flex flex-wrap gap-2">
+          <AvatarGroup isBordered max={3}>
             {(Array.isArray(cellValue) ? cellValue : []).map((member, index) => (
               typeof member === 'object' && member !== null ? (
-                <Link 
-                  href={`/team/${member.id}`} 
+                <Avatar 
                   key={index}
-                  className="text-white hover:underline"
-                >
-                  {member.name}
-                </Link>
+                  name={member.name}
+                  src={`https://i.pravatar.cc/150?u=${member.id}`} // Using a placeholder avatar service
+                  size="sm"
+                />
               ) : null
             ))}
-          </div>
+          </AvatarGroup>
         );
       case "client_phone":
         return (
@@ -227,6 +230,8 @@ export default function BookingsPage() {
             </Dropdown>
           </div>
         );
+      case "address":
+        return cellValue as string;
       default:
         return cellValue as React.ReactNode;
     }
