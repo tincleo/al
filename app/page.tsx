@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { Card, CardBody, CardHeader } from "@nextui-org/card";
+import { Card, CardBody, CardHeader, Progress } from "@nextui-org/react";
 import { Tabs, Tab } from "@nextui-org/react";
 import { title, subtitle } from "../components/primitives";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { CalendarIcon, CurrencyDollarIcon, BriefcaseIcon, ExclamationCircleIcon } from "@heroicons/react/24/outline";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { CalendarIcon, CurrencyDollarIcon, BriefcaseIcon, ExclamationCircleIcon, UserGroupIcon, ArrowTrendingUpIcon, ClockIcon } from "@heroicons/react/24/outline";
 import DateRangePicker from "./components/DateRangePicker";
 
 // Mock data (replace with real data later)
@@ -33,12 +33,28 @@ const recentActivities = [
   { id: 4, type: 'team', description: 'New team member Jane Smith added', time: '2 days ago' },
 ];
 
+const teamPerformanceData = [
+  { name: 'John', bookings: 45, revenue: 5000 },
+  { name: 'Jane', bookings: 38, revenue: 4200 },
+  { name: 'Bob', bookings: 52, revenue: 5800 },
+  { name: 'Alice', bookings: 30, revenue: 3500 },
+];
+
+const customerSatisfactionData = [
+  { name: 'Jan', satisfaction: 85 },
+  { name: 'Feb', satisfaction: 88 },
+  { name: 'Mar', satisfaction: 90 },
+  { name: 'Apr', satisfaction: 87 },
+  { name: 'May', satisfaction: 92 },
+  { name: 'Jun', satisfaction: 91 },
+];
+
 export default function Home() {
   const [selectedTab, setSelectedTab] = useState<string>("today");
   const [dateRange, setDateRange] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
 
-  const handleTabChange = (key: string) => {
-    setSelectedTab(key);
+  const handleTabChange = (key: React.Key) => {
+    setSelectedTab(key.toString());
     // Here you would fetch and update data based on the selected tab
   };
 
@@ -158,30 +174,108 @@ export default function Home() {
         </Card>
       </div>
 
-      <Card className="mt-4">
-        <CardHeader>Recent Activities</CardHeader>
-        <CardBody>
-          <ul className="space-y-4">
-            {recentActivities.map((activity) => (
-              <li key={activity.id} className="flex items-center gap-4">
-                <div className={`p-2 rounded-full ${
-                  activity.type === 'booking' ? 'bg-primary/10' : 'bg-success/10'
-                }`}>
-                  {activity.type === 'booking' ? (
-                    <BriefcaseIcon className="h-5 w-5 text-primary" />
-                  ) : (
-                    <CurrencyDollarIcon className="h-5 w-5 text-success" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{activity.description}</p>
-                  <p className="text-xs text-default-500">{activity.time}</p>
-                </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <Card className="col-span-1">
+          <CardHeader>Team Performance</CardHeader>
+          <CardBody>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={teamPerformanceData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis yAxisId="left" orientation="left" stroke="#8884d8" />
+                <YAxis yAxisId="right" orientation="right" stroke="#82ca9d" />
+                <Tooltip />
+                <Legend />
+                <Bar yAxisId="left" dataKey="bookings" fill="#8884d8" />
+                <Bar yAxisId="right" dataKey="revenue" fill="#82ca9d" />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardBody>
+        </Card>
+
+        <Card className="col-span-1">
+          <CardHeader>Customer Satisfaction Trend</CardHeader>
+          <CardBody>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={customerSatisfactionData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="satisfaction" stroke="#8884d8" activeDot={{ r: 8 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+        <Card className="col-span-1">
+          <CardHeader>Top Services</CardHeader>
+          <CardBody>
+            <ul className="space-y-2">
+              <li className="flex justify-between items-center">
+                <span>Office Cleaning</span>
+                <Progress value={75} className="max-w-md" />
               </li>
-            ))}
-          </ul>
-        </CardBody>
-      </Card>
+              <li className="flex justify-between items-center">
+                <span>Carpet Cleaning</span>
+                <Progress value={60} className="max-w-md" color="secondary" />
+              </li>
+              <li className="flex justify-between items-center">
+                <span>Window Cleaning</span>
+                <Progress value={45} className="max-w-md" color="success" />
+              </li>
+            </ul>
+          </CardBody>
+        </Card>
+
+        <Card className="col-span-1">
+  <CardHeader>Business Insights</CardHeader>
+  <CardBody>
+    <ul className="space-y-2">
+      <li className="flex items-center gap-2">
+        <ArrowTrendingUpIcon className="h-5 w-5 text-success" />
+        <span>20% increase in repeat customers</span>
+      </li>
+      <li className="flex items-center gap-2">
+        <UserGroupIcon className="h-5 w-5 text-primary" />
+        <span>5 new team members onboarded</span>
+      </li>
+      <li className="flex items-center gap-2">
+        <ClockIcon className="h-5 w-5 text-warning" />
+        <span>Average service time reduced by 15%</span>
+      </li>
+    </ul>
+  </CardBody>
+</Card>
+
+        <Card className="col-span-1">
+          <CardHeader>Recent Activities</CardHeader>
+          <CardBody>
+            <ul className="space-y-2">
+              {recentActivities.map((activity) => (
+                <li key={activity.id} className="flex items-center gap-2">
+                  <div className={`p-1 rounded-full ${
+                    activity.type === 'booking' ? 'bg-primary/10' : 'bg-success/10'
+                  }`}>
+                    {activity.type === 'booking' ? (
+                      <BriefcaseIcon className="h-4 w-4 text-primary" />
+                    ) : (
+                      <CurrencyDollarIcon className="h-4 w-4 text-success" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm">{activity.description}</p>
+                    <p className="text-xs text-default-500">{activity.time}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardBody>
+        </Card>
+      </div>
     </section>
   );
 }
