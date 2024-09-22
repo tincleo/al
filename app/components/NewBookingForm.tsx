@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { Button, Autocomplete, AutocompleteItem, Input, Select, SelectItem, Switch, Textarea } from "@nextui-org/react";
 import { CustomCheckbox } from './CustomCheckbox';
 import { supabase } from "@/lib/supabaseClient";
+import toast from 'react-hot-toast';
 
 const SERVICES = [
   { name: "Couches", value: "couches" },
@@ -11,10 +12,16 @@ const SERVICES = [
 ] as const;
 
 const LOCATIONS = [
-  { label: "New York", value: "ny" },
-  { label: "Los Angeles", value: "la" },
-  { label: "Chicago", value: "ch" },
-  { label: "Houston", value: "ho" },
+  { label: "Bastos", value: "Bastos" },
+  { label: "Mvan", value: "Mvan" },
+  { label: "Nsimeyong", value: "Nsimeyong" },
+  { label: "Biyem-Assi", value: "Biyem-Assi" },
+  { label: "Mimboman", value: "Mimboman" },
+  { label: "Ngousso", value: "Ngousso" },
+  { label: "Emana", value: "Emana" },
+  { label: "Nkolbisson", value: "Nkolbisson" },
+  { label: "Ekounou", value: "Ekounou" },
+  { label: "Essos", value: "Essos" },
 ] as const;
 
 const STATUS_OPTIONS = [
@@ -42,7 +49,13 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
     moreInfo: "",
   });
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleInputChange = useCallback((field: string, value: string | boolean) => {
+    if (field === 'phone') {
+      // Limit phone number to 9 digits
+      value = (value as string).slice(0, 9).replace(/\D/g, '');
+    }
     setFormData(prev => ({ ...prev, [field]: value }));
   }, []);
 
@@ -57,6 +70,14 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    // Validate mandatory fields
+    if (!formData.services.length || !formData.location || !formData.address || !formData.phone || !formData.price || !formData.plannedFor) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('bookings')
@@ -65,31 +86,36 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
             services: formData.services,
             location: formData.location,
             address: formData.address,
-            client_phone: formData.phone,
+            planned_at: new Date(formData.plannedFor).toISOString(),
             price: parseFloat(formData.price),
-            planned_at: formData.plannedFor,
             status: formData.status,
+            assigned_to: [], // This field is required but we don't have it in the form. You might want to add it or set a default value.
+            client_phone: formData.phone,
             priority: formData.isPriority,
-            more_info: formData.moreInfo,
+            more_info: formData.moreInfo || null,
+            state: 'pending', // Set default state to 'pending'
           }
         ]);
 
       if (error) throw error;
       
       console.log("Booking created:", data);
+      toast.success('Booking created successfully!');
       onBookingCreated();
       onClose();
     } catch (error) {
       console.error("Error creating booking:", error);
-      // Handle error (e.g., show error message to user)
+      toast.error('Failed to create booking. Please try again.');
+      setError("An error occurred while creating the booking. Please try again.");
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+      {error && <div className="text-red-500">{error}</div>}
       <div>
         <label className="block text-small font-medium text-foreground pb-1.5">
-          Cleaning service
+          Cleaning service*
         </label>
         <div className="flex flex-wrap gap-2">
           {SERVICES.map((service) => (
@@ -105,7 +131,7 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
       </div>
       <div className="grid grid-cols-2 gap-4">
         <Autocomplete
-          label="Location"
+          label="Location*"
           placeholder="Select a location"
           isRequired
           onSelectionChange={(value) => handleInputChange('location', value as string)}
@@ -123,17 +149,19 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
           onValueChange={(value) => handleInputChange('address', value)}
         />
         <Input
-          label="Phone"
+          label="Phone*"
           placeholder="699 88 77 66"
           type="tel"
           isRequired
           value={formData.phone}
           onValueChange={(value) => handleInputChange('phone', value)}
+          maxLength={9}
         />
         <Input
-          label="Price"
+          label="Price*"
           placeholder="20 000"
           type="number"
+          isRequired
           startContent={
             <div className="pointer-events-none flex items-center">
               <span className="text-default-400 text-small">FCFA</span>
@@ -143,7 +171,7 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
           onValueChange={(value) => handleInputChange('price', value)}
         />
         <Input
-          label="Planned for"
+          label="Planned for*"
           placeholder="Select date and time"
           type="datetime-local"
           isRequired
@@ -151,7 +179,7 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
           onValueChange={(value) => handleInputChange('plannedFor', value)}
         />
         <Select
-          label="Status"
+          label="Status*"
           placeholder="Select status"
           selectedKeys={[formData.status]}
           onChange={(e) => handleInputChange('status', e.target.value)}

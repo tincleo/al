@@ -38,6 +38,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from 'next/navigation';
 import { formatDate } from "../utils"; // Assume we'll create this function
 import { formatPrice } from "../utils"; // We'll create this function
+import { Toaster } from 'react-hot-toast';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   scheduled: "primary",
@@ -381,8 +382,14 @@ export default function BookingsPage() {
     );
   }, [page, pages, onPreviousPage, onNextPage]);
 
+  const handleBookingCreated = () => {
+    setIsModalOpen(false);
+    fetchBookings(); // Refresh the bookings list
+  };
+
   return (
     <section className="flex flex-col gap-4">
+      <Toaster position="top-right" />
       <h1 className={title({ size: "sm" })}>Bookings</h1>
       {loading ? (
         <p>Loading bookings...</p>
@@ -433,7 +440,10 @@ export default function BookingsPage() {
             New Booking
           </ModalHeader>
           <ModalBody>
-            <NewBookingForm onClose={() => setIsModalOpen(false)} />
+            <NewBookingForm 
+              onClose={() => setIsModalOpen(false)} 
+              onBookingCreated={handleBookingCreated}
+            />
           </ModalBody>
         </ModalContent>
       </Modal>
