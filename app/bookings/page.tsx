@@ -68,7 +68,7 @@ const statusOptions = [
   { name: "Canceled", uid: "canceled" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["created_at", "services", "location", "planned_at", "price", "status", "assigned_to", "client_phone", "actions"];
+const INITIAL_VISIBLE_COLUMNS = ["created_at", "services", "location", "planned_at", "price", "status", "assigned_to", "client_phone"];
 
 type Booking = {
   id: number;
@@ -222,7 +222,10 @@ export default function BookingsPage() {
                 </Button>
               </DropdownTrigger>
               <DropdownMenu>
-                <DropdownItem onPress={() => router.push(`/bookings/${booking.id}`)}>
+                <DropdownItem onPress={(e) => {
+                  e.preventDefault(); // Prevent row click event
+                  router.push(`/bookings/${booking.id}`);
+                }}>
                   View
                 </DropdownItem>
                 <DropdownItem>Edit</DropdownItem>
@@ -421,7 +424,11 @@ export default function BookingsPage() {
           </TableHeader>
           <TableBody emptyContent={"No bookings found"} items={sortedItems}>
             {(item) => (
-              <TableRow key={item.id}>
+              <TableRow 
+                key={item.id} 
+                className="cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => router.push(`/bookings/${item.id}`)}
+              >
                 {(columnKey) => <TableCell>{renderCell(item, columnKey)}</TableCell>}
               </TableRow>
             )}
