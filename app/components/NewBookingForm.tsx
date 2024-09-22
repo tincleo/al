@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, CheckboxGroup, Autocomplete, AutocompleteItem, Input, Select, SelectItem, Switch, Textarea } from "@nextui-org/react";
+import { Button, Autocomplete, AutocompleteItem, Input, Select, SelectItem, Switch, Textarea } from "@nextui-org/react";
 import { CustomCheckbox } from './CustomCheckbox';
 
 const services = [
@@ -24,15 +24,6 @@ const statusOptions = [
   { label: "Canceled", value: "canceled" },
 ];
 
-const teamMembers = [
-  { label: "Arnauld", value: "arnauld" },
-  { label: "Prosper", value: "prosper" },
-  { label: "Donovan", value: "donovan" },
-  { label: "Michel", value: "michel" },
-  { label: "Sharon", value: "sharon" },
-  { label: "Joseph", value: "joseph" },
-];
-
 interface NewBookingFormProps {
   onClose: () => void;
 }
@@ -42,7 +33,10 @@ export function NewBookingForm({ onClose }: NewBookingFormProps) {
   const [status, setStatus] = useState("scheduled");
   const [isPriority, setIsPriority] = useState(false);
   const [moreInfo, setMoreInfo] = useState("");
-  const [assignedTo, setAssignedTo] = useState<string[]>([]);
+
+  // Set default date and time
+  const now = new Date();
+  const defaultDateTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0).toISOString().slice(0, 16);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,20 +47,28 @@ export function NewBookingForm({ onClose }: NewBookingFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
-      <CheckboxGroup
-        className="gap-1"
-        label="Cleaning service"
-        orientation="horizontal"
-        value={selectedServices}
-        onChange={setSelectedServices}
-        isRequired
-      >
-        {services.map((service) => (
-          <CustomCheckbox key={service.value} value={service.value} className="text-sm">
-            {service.name}
-          </CustomCheckbox>
-        ))}
-      </CheckboxGroup>
+      <div>
+        <label className="block text-small font-medium text-foreground pb-1.5">
+          Cleaning service
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {services.map((service) => (
+            <CustomCheckbox
+              key={service.value}
+              isSelected={selectedServices.includes(service.value)}
+              onPress={() => {
+                setSelectedServices(prev => 
+                  prev.includes(service.value)
+                    ? prev.filter(s => s !== service.value)
+                    : [...prev, service.value]
+                )
+              }}
+            >
+              {service.name}
+            </CustomCheckbox>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <Autocomplete
           label="Location"
@@ -80,25 +82,30 @@ export function NewBookingForm({ onClose }: NewBookingFormProps) {
           ))}
         </Autocomplete>
         <Input
+          label="Address"
+          placeholder="Enter address"
+        />
+        <Input
           label="Phone"
-          placeholder="Enter phone number"
+          placeholder="699 88 77 66"
           type="tel"
           isRequired
         />
         <Input
           label="Price"
-          placeholder="Enter price"
+          placeholder="20 000"
           type="number"
           startContent={
             <div className="pointer-events-none flex items-center">
-              <span className="text-default-400 text-small">$</span>
+              <span className="text-default-400 text-small">FCFA</span>
             </div>
           }
         />
         <Input
-          label="Date and Time"
+          label="Planned for"
           placeholder="Select date and time"
           type="datetime-local"
+          defaultValue={defaultDateTime}
           isRequired
         />
         <Select
@@ -114,27 +121,7 @@ export function NewBookingForm({ onClose }: NewBookingFormProps) {
             </SelectItem>
           ))}
         </Select>
-        <Switch
-          isSelected={isPriority}
-          onValueChange={setIsPriority}
-        >
-          Priority
-        </Switch>
       </div>
-      <Select
-        label="Assigned to"
-        placeholder="Select team members"
-        selectionMode="multiple"
-        selectedKeys={assignedTo}
-        onSelectionChange={(keys) => setAssignedTo(Array.from(keys) as string[])}
-        className="w-full"
-      >
-        {teamMembers.map((member) => (
-          <SelectItem key={member.value} value={member.value}>
-            {member.label}
-          </SelectItem>
-        ))}
-      </Select>
       <Textarea
         label="More info"
         placeholder="Enter additional details about the booking"
@@ -142,13 +129,21 @@ export function NewBookingForm({ onClose }: NewBookingFormProps) {
         onValueChange={setMoreInfo}
         className="w-full"
       />
-      <div className="flex justify-end gap-2">
-        <Button color="danger" variant="light" onPress={onClose}>
-          Cancel
-        </Button>
-        <Button color="primary" type="submit">
-          Create Booking
-        </Button>
+      <div className="flex justify-between items-center">
+        <Switch
+          isSelected={isPriority}
+          onValueChange={setIsPriority}
+        >
+          Priority booking
+        </Switch>
+        <div className="flex gap-2">
+          <Button color="danger" variant="light" onPress={onClose}>
+            Cancel
+          </Button>
+          <Button color="primary" type="submit">
+            Create Booking
+          </Button>
+        </div>
       </div>
     </form>
   );
