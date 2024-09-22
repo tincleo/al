@@ -72,8 +72,8 @@ export default function Home() {
     // Here you would fetch and update data based on the selected tab
   };
 
-  const handleDateRangeChange = (start: string, end: string) => {
-    setDateRange({ start: new Date(start), end: new Date(end) });
+  const handleDateRangeChange = (start: Date, end: Date) => {
+    setDateRange({ start, end });
     // Here you would fetch and update data based on the selected date range
   };
 
@@ -113,12 +113,7 @@ export default function Home() {
           <h2 className={title({ size: "sm" })}>Dashboard Overview</h2>
           <h3 className={subtitle({ class: "mt-1" })}>Here's a summary of your business</h3>
         </div>
-        <DateRangePicker
-          onChange={handleDateRangeChange}
-          initialStartDate={dateRange.start.toISOString().split('T')[0]}
-          initialEndDate={dateRange.end.toISOString().split('T')[0]}
-          showTwoCalendars={true}
-        />
+        <DateRangePicker onChange={handleDateRangeChange} />
       </div>
 
       <Tabs 
