@@ -156,7 +156,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({ onChange }) => {
                 className={`w-8 h-8 rounded-full ${
                   isSelected ? 'bg-blue-500 text-white' : 
                   isInRange ? 'bg-[rgb(69,69,69)] text-white' :
-                  isDisabled ? 'bg-[rgb(213,213,213)] text-[rgb(88,88,88)] cursor-not-allowed' : 'hover:bg-[#27272C] hover:text-white'
+                  isDisabled ? 'text-[rgb(112,112,112)] cursor-not-allowed' : 'hover:bg-[#27272C] hover:text-white'
                 }`}
                 disabled={isDisabled}
               >
