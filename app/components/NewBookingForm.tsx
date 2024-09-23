@@ -33,20 +33,22 @@ const STATUS_OPTIONS = [
 
 interface NewBookingFormProps {
   onClose: () => void;
-  onBookingCreated: () => void;
+  onBookingCreated: (booking: Partial<Booking>) => void;
+  initialData?: Booking;
+  isEditing?: boolean;
 }
 
-export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProps) {
+export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditing = false }: NewBookingFormProps) {
   const [formData, setFormData] = useState({
-    services: [] as string[],
-    location: "",
-    address: "",
-    phone: "",
-    price: "",
-    plannedFor: new Date().toISOString().slice(0, 16),
-    status: "scheduled",
-    isPriority: false,
-    moreInfo: "",
+    services: initialData?.services || [] as string[],
+    location: initialData?.location || "",
+    address: initialData?.address || "",
+    phone: initialData?.client_phone || "",
+    price: initialData?.price?.toString() || "",
+    plannedFor: initialData?.planned_at ? new Date(initialData.planned_at).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+    status: initialData?.status || "scheduled",
+    isPriority: initialData?.priority || false,  // This line ensures the priority is prefilled
+    moreInfo: initialData?.more_info || "",
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -78,36 +80,21 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
       return;
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert([
-          {
-            services: formData.services,
-            location: formData.location,
-            address: formData.address,
-            planned_at: new Date(formData.plannedFor).toISOString(),
-            price: parseFloat(formData.price),
-            status: formData.status,
-            assigned_to: [], // This field is required but we don't have it in the form. You might want to add it or set a default value.
-            client_phone: formData.phone,
-            priority: formData.isPriority,
-            more_info: formData.moreInfo || null,
-            state: 'pending', // Set default state to 'pending'
-          }
-        ]);
+    const bookingData = {
+      services: formData.services,
+      location: formData.location,
+      address: formData.address,
+      planned_at: new Date(formData.plannedFor).toISOString(),
+      price: parseFloat(formData.price),
+      status: formData.status,
+      assigned_to: initialData?.assigned_to || [], // Preserve existing assigned team or use empty array
+      client_phone: formData.phone,
+      priority: formData.isPriority,
+      more_info: formData.moreInfo || null,
+      state: initialData?.state || 'pending', // Preserve existing state or use 'pending' for new bookings
+    };
 
-      if (error) throw error;
-      
-      console.log("Booking created:", data);
-      toast.success('Booking created successfully!');
-      onBookingCreated();
-      onClose();
-    } catch (error) {
-      console.error("Error creating booking:", error);
-      toast.error('Failed to create booking. Please try again.');
-      setError("An error occurred while creating the booking. Please try again.");
-    }
+    onBookingCreated(bookingData);
   };
 
   return (
@@ -211,7 +198,7 @@ export function NewBookingForm({ onClose, onBookingCreated }: NewBookingFormProp
             Cancel
           </Button>
           <Button color="primary" type="submit">
-            Create Booking
+            {isEditing ? "Update Booking" : "Create Booking"}
           </Button>
         </div>
       </div>

@@ -11,6 +11,7 @@ import Image from 'next/image';
 import { useDropzone } from 'react-dropzone';
 import { Spinner } from "@nextui-org/react";
 import toast, { Toaster } from 'react-hot-toast';
+import { NewBookingForm } from '../../components/NewBookingForm';
 
 type Booking = {
   id: number;
@@ -57,6 +58,7 @@ export default function BookingDetails() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<Selection>(new Set());
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
     fetchBookingDetails();
@@ -292,6 +294,22 @@ export default function BookingDetails() {
     </div>
   );
 
+  const handleEditSave = async (updatedBooking: Partial<Booking>) => {
+    const { error } = await supabase
+      .from('bookings')
+      .update(updatedBooking)
+      .eq('id', bookingId);
+
+    if (error) {
+      console.error('Error updating booking:', error);
+      toast.error('Failed to update booking. Please try again.');
+    } else {
+      setIsEditModalOpen(false);
+      fetchBookingDetails();
+      toast.success('Booking updated successfully!');
+    }
+  };
+
   if (!booking) return <div>Loading...</div>;
 
   return (
@@ -317,7 +335,7 @@ export default function BookingDetails() {
           <Button color="primary" variant="bordered" startContent={<ShareIcon className="w-4 h-4" />}>
             Share
           </Button>
-          <Button color="primary" variant="bordered" startContent={<PencilIcon className="w-4 h-4" />}>
+          <Button color="primary" variant="bordered" startContent={<PencilIcon className="w-4 h-4" />} onPress={() => setIsEditModalOpen(true)}>
             Edit
           </Button>
           <Button color="danger" variant="bordered" startContent={<TrashIcon className="w-4 h-4" />} onPress={() => setIsDeleteModalOpen(true)}>
@@ -654,6 +672,27 @@ export default function BookingDetails() {
               Delete
             </Button>
           </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Edit Booking Modal */}
+      <Modal 
+        isOpen={isEditModalOpen} 
+        onClose={() => setIsEditModalOpen(false)}
+        size="3xl"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Edit Booking</ModalHeader>
+          <ModalBody>
+            {booking && (
+              <NewBookingForm
+                initialData={booking}
+                onClose={() => setIsEditModalOpen(false)}
+                onBookingCreated={handleEditSave}
+                isEditing={true}
+              />
+            )}
+          </ModalBody>
         </ModalContent>
       </Modal>
     </div>
