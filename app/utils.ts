@@ -35,6 +35,7 @@ export function formatDate(dateString: string): string {
   }
 }
 
-export function formatPrice(price: number): string {
-  return price.toLocaleString('de-DE'); // German locale uses dot as thousand separator
-}
+export const formatPrice = (price: number, includeCurrency: boolean = false): string => {
+  const formattedPrice = price.toLocaleString('fr-FR');
+  return includeCurrency ? `${formattedPrice} FCFA` : formattedPrice;
+};

@@ -10,6 +10,7 @@ import { supabase } from "@/lib/supabaseClient";
 import Image from 'next/image';
 import { useDropzone } from 'react-dropzone';
 import { Spinner } from "@nextui-org/react";
+import toast, { Toaster } from 'react-hot-toast';
 
 type Booking = {
   id: number;
@@ -55,6 +56,7 @@ export default function BookingDetails() {
   const fileInputRefAfter = useRef<HTMLInputElement>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [selectedTeamMembers, setSelectedTeamMembers] = useState<Selection>(new Set());
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     fetchBookingDetails();
@@ -90,6 +92,7 @@ export default function BookingDetails() {
   };
 
   const handleDelete = async () => {
+    setIsDeleteModalOpen(false);
     const { error } = await supabase
       .from('bookings')
       .delete()
@@ -97,7 +100,9 @@ export default function BookingDetails() {
 
     if (error) {
       console.error('Error deleting booking:', error);
+      toast.error('Failed to delete booking. Please try again.');
     } else {
+      toast.success('Booking deleted successfully!');
       router.push('/bookings');
     }
   };
@@ -291,6 +296,7 @@ export default function BookingDetails() {
 
   return (
     <div className="space-y-6">
+      <Toaster position="top-center" reverseOrder={false} />
       <div className="flex justify-between items-center">
         <div className="flex items-center space-x-4">
           <Badge
@@ -314,7 +320,7 @@ export default function BookingDetails() {
           <Button color="primary" variant="bordered" startContent={<PencilIcon className="w-4 h-4" />}>
             Edit
           </Button>
-          <Button color="danger" variant="bordered" startContent={<TrashIcon className="w-4 h-4" />} onPress={handleDelete}>
+          <Button color="danger" variant="bordered" startContent={<TrashIcon className="w-4 h-4" />} onPress={() => setIsDeleteModalOpen(true)}>
             Delete
           </Button>
         </div>
@@ -626,6 +632,28 @@ export default function BookingDetails() {
               />
             )}
           </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      <Modal 
+        isOpen={isDeleteModalOpen} 
+        onClose={() => setIsDeleteModalOpen(false)}
+        backdrop="blur"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Confirm Deletion</ModalHeader>
+          <ModalBody>
+            <p className="text-danger">Warning: This action cannot be undone.</p>
+            <p>Are you sure you want to delete this booking?</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="default" variant="light" onPress={() => setIsDeleteModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button color="danger" onPress={handleDelete}>
+              Delete
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </div>

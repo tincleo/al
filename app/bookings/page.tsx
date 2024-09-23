@@ -176,7 +176,7 @@ export default function BookingsPage() {
       case "services":
         return (cellValue as string[]).join(", ");
       case "price":
-        return formatPrice(cellValue as number);
+        return `${formatPrice(cellValue as number)} FCFA`;  // Add FCFA suffix here
       case "status":
         return (
           <Chip className="capitalize" color={statusColorMap[booking.status]} size="sm" variant="flat">

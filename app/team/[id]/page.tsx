@@ -43,7 +43,7 @@ const getAvatarUrl = (fileName: string) => {
 export default function TeamMemberDetails() {
   const params = useParams();
   const router = useRouter();
-  const memberId = params.id as string;
+  const memberId = params?.id as string ?? '';
   const [member, setMember] = useState<TeamMember | null>(null);
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
   const [balanceChange, setBalanceChange] = useState("");
@@ -83,14 +83,17 @@ export default function TeamMemberDetails() {
   };
 
   const handleDelete = async () => {
+    setIsDeleteModalOpen(false);
     const { error } = await supabase
       .from('team')
       .delete()
       .eq('id', memberId);
 
     if (error) {
-      console.error('Error deleting member:', error);
+      console.error('Error deleting team member:', error);
+      toast.error('Failed to delete team member. Please try again.');
     } else {
+      toast.success('Team member deleted successfully!');
       router.push('/team');
     }
   };
