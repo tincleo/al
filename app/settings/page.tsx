@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Card, CardBody, CardHeader, Divider, Input, Button, Select, SelectItem, Switch, Textarea, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tabs, Tab, Checkbox, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@nextui-org/react";
+import { Card, CardBody, CardHeader, Divider, Input, Button, Select, SelectItem, Switch, Textarea, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tabs, Tab, Checkbox, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@nextui-org/react";
 import { title } from "@/components/primitives";
 import { PlusIcon, TrashIcon, PencilIcon } from '@heroicons/react/24/outline';
 
@@ -21,35 +21,66 @@ export default function Settings() {
   const [newRole, setNewRole] = useState("");
   const [newStatus, setNewStatus] = useState("");
 
+  const [serviceError, setServiceError] = useState(false);
+  const [locationError, setLocationError] = useState(false);
+  const [roleError, setRoleError] = useState(false);
+  const [statusError, setStatusError] = useState(false);
+
   const [isEditLocationModalOpen, setIsEditLocationModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<{ name: string, neighboring: string[] } | null>(null);
   const [editingLocationIndex, setEditingLocationIndex] = useState<number | null>(null);
 
+  const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
+  const [isNewLocationModalOpen, setIsNewLocationModalOpen] = useState(false);
+  const [isNewRoleModalOpen, setIsNewRoleModalOpen] = useState(false);
+  const [isNewStatusModalOpen, setIsNewStatusModalOpen] = useState(false);
+
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deletingItem, setDeletingItem] = useState<any>(null);
+  const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onClose: onEditModalClose } = useDisclosure();
+  const { isOpen: isDeleteModalOpen, onOpen: onDeleteModalOpen, onClose: onDeleteModalClose } = useDisclosure();
+
   const handleAddService = () => {
-    if (newService) {
+    if (newService.trim()) {
       setServices([...services, { name: newService, enabled: true }]);
       setNewService("");
+      setIsNewServiceModalOpen(false);
+      setServiceError(false);
+    } else {
+      setServiceError(true);
     }
   };
 
   const handleAddLocation = () => {
-    if (newLocation) {
+    if (newLocation.trim()) {
       setLocations([...locations, { name: newLocation, neighboring: [] }]);
       setNewLocation("");
+      setIsNewLocationModalOpen(false);
+      setLocationError(false);
+    } else {
+      setLocationError(true);
     }
   };
 
   const handleAddRole = () => {
-    if (newRole) {
+    if (newRole.trim()) {
       setRoles([...roles, newRole]);
       setNewRole("");
+      setIsNewRoleModalOpen(false);
+      setRoleError(false);
+    } else {
+      setRoleError(true);
     }
   };
 
   const handleAddStatus = () => {
-    if (newStatus) {
+    if (newStatus.trim()) {
       setStatuses([...statuses, newStatus]);
       setNewStatus("");
+      setIsNewStatusModalOpen(false);
+      setStatusError(false);
+    } else {
+      setStatusError(true);
     }
   };
 
@@ -74,29 +105,78 @@ export default function Settings() {
     }
   };
 
+  const handleEdit = (item: any, type: string) => {
+    setEditingItem({ ...item, type });
+    onEditModalOpen();
+  };
+
+  const handleDelete = (item: any, type: string) => {
+    setDeletingItem({ ...item, type });
+    onDeleteModalOpen();
+  };
+
+  const handleEditSave = async (updatedItem: any) => {
+    try {
+      const { error } = await supabase
+        .from(editingItem.type)
+        .update(updatedItem)
+        .eq('id', editingItem.id);
+
+      if (error) throw error;
+
+      // Refresh the data
+      if (editingItem.type === 'services') fetchServices();
+      else if (editingItem.type === 'locations') fetchLocations();
+      else if (editingItem.type === 'roles') fetchRoles();
+      else if (editingItem.type === 'statuses') fetchStatuses();
+
+      onEditModalClose();
+      toast.success(`${editingItem.type.slice(0, -1)} updated successfully!`);
+    } catch (error) {
+      console.error('Error updating item:', error);
+      toast.error('Failed to update. Please try again.');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      const { error } = await supabase
+        .from(deletingItem.type)
+        .delete()
+        .eq('id', deletingItem.id);
+
+      if (error) throw error;
+
+      // Refresh the data
+      if (deletingItem.type === 'services') fetchServices();
+      else if (deletingItem.type === 'locations') fetchLocations();
+      else if (deletingItem.type === 'roles') fetchRoles();
+      else if (deletingItem.type === 'statuses') fetchStatuses();
+
+      onDeleteModalClose();
+      toast.success(`${deletingItem.type.slice(0, -1)} deleted successfully!`);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast.error('Failed to delete. Please try again.');
+    }
+  };
+
   return (
     <section className="space-y-6">
       <h1 className="font-semibold text-xl lg:text-2xl">Settings</h1>
       <Tabs variant="bordered">
         <Tab title="Services">
           <Card>
-            <CardHeader>
-              <h2 className={title({ size: 'sm' })}>Manage Cleaning Services</h2>
+            <CardHeader className="flex justify-between items-center">
+              <h2 className="text-sm font-medium">Manage Cleaning Services</h2>
+              <Button color="primary" size="sm" onPress={() => setIsNewServiceModalOpen(true)}>
+                <PlusIcon className="w-4 h-4 mr-1" />
+                New Service
+              </Button>
             </CardHeader>
             <Divider />
             <CardBody>
-              <div className="flex gap-4">
-                <Input
-                  label="New Service"
-                  placeholder="Enter new service"
-                  value={newService}
-                  onValueChange={setNewService}
-                />
-                <Button color="primary" onPress={handleAddService}>
-                  <PlusIcon className="w-5 h-5" />
-                </Button>
-              </div>
-              <Table aria-label="Cleaning Services" className="mt-4">
+              <Table aria-label="Cleaning Services">
                 <TableHeader>
                   <TableColumn>Service</TableColumn>
                   <TableColumn>Enabled</TableColumn>
@@ -113,10 +193,10 @@ export default function Settings() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Button isIconOnly size="sm" variant="light">
+                        <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(service, 'services')}>
                           <PencilIcon className="w-5 h-5" />
                         </Button>
-                        <Button isIconOnly size="sm" variant="light" color="danger">
+                        <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(service, 'services')}>
                           <TrashIcon className="w-5 h-5" />
                         </Button>
                       </TableCell>
@@ -129,23 +209,16 @@ export default function Settings() {
         </Tab>
         <Tab title="Locations">
           <Card>
-            <CardHeader>
-              <h2 className={title({ size: 'sm' })}>Manage Locations</h2>
+            <CardHeader className="flex justify-between items-center">
+              <h2 className="text-sm font-medium">Manage Locations</h2>
+              <Button color="primary" size="sm" onPress={() => setIsNewLocationModalOpen(true)}>
+                <PlusIcon className="w-4 h-4 mr-1" />
+                New Location
+              </Button>
             </CardHeader>
             <Divider />
             <CardBody>
-              <div className="flex gap-4">
-                <Input
-                  label="New Location"
-                  placeholder="Enter new location"
-                  value={newLocation}
-                  onValueChange={setNewLocation}
-                />
-                <Button color="primary" onPress={handleAddLocation}>
-                  <PlusIcon className="w-5 h-5" />
-                </Button>
-              </div>
-              <Table aria-label="Locations" className="mt-4">
+              <Table aria-label="Locations">
                 <TableHeader>
                   <TableColumn>Location</TableColumn>
                   <TableColumn>Neighboring</TableColumn>
@@ -173,23 +246,16 @@ export default function Settings() {
         </Tab>
         <Tab title="Roles">
           <Card>
-            <CardHeader>
-              <h2 className={title({ size: 'sm' })}>Manage Team Roles</h2>
+            <CardHeader className="flex justify-between items-center">
+              <h2 className="text-sm font-medium">Manage Team Roles</h2>
+              <Button color="primary" size="sm" onPress={() => setIsNewRoleModalOpen(true)}>
+                <PlusIcon className="w-4 h-4 mr-1" />
+                New Role
+              </Button>
             </CardHeader>
             <Divider />
             <CardBody>
-              <div className="flex gap-4">
-                <Input
-                  label="New Role"
-                  placeholder="Enter new role"
-                  value={newRole}
-                  onValueChange={setNewRole}
-                />
-                <Button color="primary" onPress={handleAddRole}>
-                  <PlusIcon className="w-5 h-5" />
-                </Button>
-              </div>
-              <Table aria-label="Team Roles" className="mt-4">
+              <Table aria-label="Team Roles">
                 <TableHeader>
                   <TableColumn>Role</TableColumn>
                   <TableColumn>Permissions</TableColumn>
@@ -223,23 +289,16 @@ export default function Settings() {
         </Tab>
         <Tab title="Bookings">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex justify-between items-center">
               <h2 className="text-sm font-medium">Manage Booking Statuses</h2>
+              <Button color="primary" size="sm" onPress={() => setIsNewStatusModalOpen(true)}>
+                <PlusIcon className="w-4 h-4 mr-1" />
+                New Status
+              </Button>
             </CardHeader>
             <Divider />
             <CardBody>
-              <div className="flex gap-4">
-                <Input
-                  label="New Status"
-                  placeholder="Enter new status"
-                  value={newStatus}
-                  onValueChange={setNewStatus}
-                />
-                <Button color="primary" onPress={handleAddStatus}>
-                  <PlusIcon className="w-5 h-5" />
-                </Button>
-              </div>
-              <Table aria-label="Booking Statuses" className="mt-4">
+              <Table aria-label="Booking Statuses">
                 <TableHeader>
                   <TableColumn>Status</TableColumn>
                   <TableColumn>Actions</TableColumn>
@@ -301,6 +360,158 @@ export default function Settings() {
         </Tab>
       </Tabs>
 
+      {/* New Service Modal */}
+      <Modal 
+        isOpen={isNewServiceModalOpen} 
+        onClose={() => {
+          setIsNewServiceModalOpen(false);
+          setServiceError(false);
+        }}
+        size="md"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Add New Service</ModalHeader>
+          <ModalBody>
+            <Input
+              label="Service Name"
+              placeholder="Enter new service"
+              value={newService}
+              onValueChange={(value) => {
+                setNewService(value);
+                setServiceError(false);
+              }}
+              color={serviceError ? "danger" : "default"}
+              errorMessage={serviceError ? "Service name cannot be empty" : ""}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button color="default" variant="light" onPress={() => {
+              setIsNewServiceModalOpen(false);
+              setServiceError(false);
+            }}>
+              Cancel
+            </Button>
+            <Button color="primary" onPress={handleAddService}>
+              Add
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* New Location Modal */}
+      <Modal 
+        isOpen={isNewLocationModalOpen} 
+        onClose={() => {
+          setIsNewLocationModalOpen(false);
+          setLocationError(false);
+        }}
+        size="md"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Add New Location</ModalHeader>
+          <ModalBody>
+            <Input
+              label="Location Name"
+              placeholder="Enter new location"
+              value={newLocation}
+              onValueChange={(value) => {
+                setNewLocation(value);
+                setLocationError(false);
+              }}
+              color={locationError ? "danger" : "default"}
+              errorMessage={locationError ? "Location name cannot be empty" : ""}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button color="default" variant="light" onPress={() => {
+              setIsNewLocationModalOpen(false);
+              setLocationError(false);
+            }}>
+              Cancel
+            </Button>
+            <Button color="primary" onPress={handleAddLocation}>
+              Add
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* New Role Modal */}
+      <Modal 
+        isOpen={isNewRoleModalOpen} 
+        onClose={() => {
+          setIsNewRoleModalOpen(false);
+          setRoleError(false);
+        }}
+        size="md"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Add New Role</ModalHeader>
+          <ModalBody>
+            <Input
+              label="Role Name"
+              placeholder="Enter new role"
+              value={newRole}
+              onValueChange={(value) => {
+                setNewRole(value);
+                setRoleError(false);
+              }}
+              color={roleError ? "danger" : "default"}
+              errorMessage={roleError ? "Role name cannot be empty" : ""}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button color="default" variant="light" onPress={() => {
+              setIsNewRoleModalOpen(false);
+              setRoleError(false);
+            }}>
+              Cancel
+            </Button>
+            <Button color="primary" onPress={handleAddRole}>
+              Add
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* New Status Modal */}
+      <Modal 
+        isOpen={isNewStatusModalOpen} 
+        onClose={() => {
+          setIsNewStatusModalOpen(false);
+          setStatusError(false);
+        }}
+        size="md"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Add New Status</ModalHeader>
+          <ModalBody>
+            <Input
+              label="Status Name"
+              placeholder="Enter new status"
+              value={newStatus}
+              onValueChange={(value) => {
+                setNewStatus(value);
+                setStatusError(false);
+              }}
+              color={statusError ? "danger" : "default"}
+              errorMessage={statusError ? "Status name cannot be empty" : ""}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button color="default" variant="light" onPress={() => {
+              setIsNewStatusModalOpen(false);
+              setStatusError(false);
+            }}>
+              Cancel
+            </Button>
+            <Button color="primary" onPress={handleAddStatus}>
+              Add
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       {/* Edit Location Modal */}
       <Modal 
         isOpen={isEditLocationModalOpen} 
@@ -340,6 +551,49 @@ export default function Settings() {
             </Button>
             <Button color="primary" onPress={handleSaveLocation}>
               Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal isOpen={isEditModalOpen} onClose={onEditModalClose} size="md">
+        <ModalContent>
+          <ModalHeader>Edit {editingItem?.type.slice(0, -1)}</ModalHeader>
+          <ModalBody>
+            {editingItem && (
+              <Input
+                label={`${editingItem.type.slice(0, -1)} Name`}
+                value={editingItem.name}
+                onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+              />
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button color="default" variant="light" onPress={onEditModalClose}>
+              Cancel
+            </Button>
+            <Button color="primary" onPress={() => handleEditSave(editingItem)}>
+              Save
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Delete Modal */}
+      <Modal isOpen={isDeleteModalOpen} onClose={onDeleteModalClose} size="md">
+        <ModalContent>
+          <ModalHeader>Confirm Deletion</ModalHeader>
+          <ModalBody>
+            <p className="text-danger">Warning: This action cannot be undone.</p>
+            <p>Are you sure you want to delete this {deletingItem?.type.slice(0, -1)}?</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="default" variant="light" onPress={onDeleteModalClose}>
+              Cancel
+            </Button>
+            <Button color="danger" onPress={handleDeleteConfirm}>
+              Delete
             </Button>
           </ModalFooter>
         </ModalContent>
