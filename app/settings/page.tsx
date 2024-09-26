@@ -5,6 +5,7 @@ import { Card, CardBody, CardHeader, Divider, Input, Button, Table, TableHeader,
 import { PlusIcon, TrashIcon, PencilIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { supabase } from "@/lib/supabaseClient";
 import toast from 'react-hot-toast';
+import { Toaster } from 'react-hot-toast';
 
 const SERVICES = ["Couch", "Chair", "Carpet", "House", "Car seats"];
 const LOCATIONS = ["Bastos", "Mvan", "Nsimeyong", "Biyem-Assi", "Mimboman", "Ngousso", "Emana", "Nkolbisson", "Ekounou", "Essos"];
@@ -30,6 +31,7 @@ export default function Settings() {
   const [newLocation, setNewLocation] = useState("");
   const [newRole, setNewRole] = useState("");
   const [newStatus, setNewStatus] = useState("");
+  const [newLocationNeighboring, setNewLocationNeighboring] = useState<string[]>([]);
 
   const [serviceError, setServiceError] = useState(false);
   const [locationError, setLocationError] = useState(false);
@@ -37,8 +39,7 @@ export default function Settings() {
   const [statusError, setStatusError] = useState(false);
 
   const [isEditLocationModalOpen, setIsEditLocationModalOpen] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<{ name: string, neighboring: string[] } | null>(null);
-  const [editingLocationIndex, setEditingLocationIndex] = useState<number | null>(null);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 
   const [isNewServiceModalOpen, setIsNewServiceModalOpen] = useState(false);
   const [isNewLocationModalOpen, setIsNewLocationModalOpen] = useState(false);
@@ -52,7 +53,7 @@ export default function Settings() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortDescriptor, setSortDescriptor] = useState({ column: "name", direction: "ascending" });
+  const [sortDescriptor, setSortDescriptor] = useState<{ column: keyof Location, direction: "ascending" | "descending" }>({ column: "name", direction: "ascending" });
 
   useEffect(() => {
     fetchLocations();
@@ -84,8 +85,8 @@ export default function Settings() {
 
   const sortedLocations = useMemo(() => {
     return [...filteredLocations].sort((a, b) => {
-      const first = a[sortDescriptor.column as keyof Location];
-      const second = b[sortDescriptor.column as keyof Location];
+      const first = a[sortDescriptor.column];
+      const second = b[sortDescriptor.column];
       const cmp = first < second ? -1 : first > second ? 1 : 0;
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
@@ -102,12 +103,44 @@ export default function Settings() {
     }
   };
 
-  const handleAddLocation = () => {
+  const handleAddLocation = async () => {
     if (newLocation.trim()) {
-      setLocations([...locations, { name: newLocation, neighboring: [] }]);
-      setNewLocation("");
-      setIsNewLocationModalOpen(false);
-      setLocationError(false);
+      try {
+        setIsLoading(true);
+        const { data, error } = await supabase
+          .from('locations')
+          .insert({
+            name: newLocation,
+            neighboring: newLocationNeighboring,
+            follow_up: 0,
+            bookings: 0,
+            completed: 0
+          })
+          .select();
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          setLocations([...locations, data[0] as Location]);
+          setNewLocation("");
+          setNewLocationNeighboring([]);
+          setIsNewLocationModalOpen(false);
+          setLocationError(false);
+          toast.success('Location added successfully!');
+          await fetchLocations(); // Refresh the locations data
+        } else {
+          throw new Error('No data returned from insert operation');
+        }
+      } catch (error) {
+        console.error('Error adding location:', error);
+        if (error instanceof Error) {
+          toast.error(`Failed to add location: ${error.message}`);
+        } else {
+          toast.error('Failed to add location. Please try again.');
+        }
+      } finally {
+        setIsLoading(false);
+      }
     } else {
       setLocationError(true);
     }
@@ -141,18 +174,36 @@ export default function Settings() {
     setServices(updatedServices);
   };
 
-  const handleEditLocation = (index: number) => {
-    setEditingLocation(locations[index]);
-    setEditingLocationIndex(index);
+  const handleEditLocation = (location: Location) => {
+    setEditingLocation(location);
     setIsEditLocationModalOpen(true);
   };
 
-  const handleSaveLocation = () => {
-    if (editingLocationIndex !== null && editingLocation) {
-      const updatedLocations = [...locations];
-      updatedLocations[editingLocationIndex] = editingLocation;
-      setLocations(updatedLocations);
-      setIsEditLocationModalOpen(false);
+  const getLocationNameById = (id: string) => {
+    const location = locations.find(loc => loc.id === id);
+    return location ? location.name : '';
+  };
+
+  const handleSaveLocation = async () => {
+    if (editingLocation) {
+      try {
+        const { error } = await supabase
+          .from('locations')
+          .update({
+            name: editingLocation.name,
+            neighboring: editingLocation.neighboring
+          })
+          .eq('id', editingLocation.id);
+
+        if (error) throw error;
+
+        setIsEditLocationModalOpen(false);
+        await fetchLocations(); // Refresh the locations data
+        toast.success('Location updated successfully!');
+      } catch (error) {
+        console.error('Error updating location:', error);
+        toast.error('Failed to update location. Please try again.');
+      }
     }
   };
 
@@ -161,54 +212,28 @@ export default function Settings() {
     onEditModalOpen();
   };
 
-  const handleDelete = (item: any, type: string) => {
+  const handleDelete = async (item: Location, type: string) => {
     setDeletingItem({ ...item, type });
     onDeleteModalOpen();
   };
 
-  const handleEditSave = async (updatedItem: any) => {
-    try {
-      const { error } = await supabase
-        .from(editingItem.type)
-        .update(updatedItem)
-        .eq('id', editingItem.id);
-
-      if (error) throw error;
-
-      // Refresh the data
-      if (editingItem.type === 'services') fetchServices();
-      else if (editingItem.type === 'locations') fetchLocations();
-      else if (editingItem.type === 'roles') fetchRoles();
-      else if (editingItem.type === 'statuses') fetchStatuses();
-
-      onEditModalClose();
-      toast.success(`${editingItem.type.slice(0, -1)} updated successfully!`);
-    } catch (error) {
-      console.error('Error updating item:', error);
-      toast.error('Failed to update. Please try again.');
-    }
-  };
-
   const handleDeleteConfirm = async () => {
-    try {
-      const { error } = await supabase
-        .from(deletingItem.type)
-        .delete()
-        .eq('id', deletingItem.id);
+    if (deletingItem) {
+      try {
+        const { error } = await supabase
+          .from('locations')
+          .delete()
+          .eq('id', deletingItem.id);
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Refresh the data
-      if (deletingItem.type === 'services') fetchServices();
-      else if (deletingItem.type === 'locations') fetchLocations();
-      else if (deletingItem.type === 'roles') fetchRoles();
-      else if (deletingItem.type === 'statuses') fetchStatuses();
-
-      onDeleteModalClose();
-      toast.success(`${deletingItem.type.slice(0, -1)} deleted successfully!`);
-    } catch (error) {
-      console.error('Error deleting item:', error);
-      toast.error('Failed to delete. Please try again.');
+        onDeleteModalClose();
+        await fetchLocations(); // Refresh the locations data
+        toast.success('Location deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting location:', error);
+        toast.error('Failed to delete location. Please try again.');
+      }
     }
   };
 
@@ -226,6 +251,7 @@ export default function Settings() {
 
   return (
     <section className="space-y-6">
+      <Toaster position="top-center" reverseOrder={false} />
       <h1 className="font-semibold text-xl lg:text-2xl">Settings</h1>
       <Tabs variant="bordered">
         <Tab title="Locations">
@@ -253,7 +279,7 @@ export default function Settings() {
                 <Table
                   aria-label="Locations"
                   sortDescriptor={sortDescriptor}
-                  onSortChange={setSortDescriptor}
+                  onSortChange={(descriptor) => setSortDescriptor(descriptor as typeof sortDescriptor)}
                 >
                   <TableHeader>
                     <TableColumn key="name" allowsSorting>Location</TableColumn>
@@ -267,7 +293,7 @@ export default function Settings() {
                     {sortedLocations.map((location) => (
                       <TableRow key={location.id}>
                         <TableCell>{location.name}</TableCell>
-                        <TableCell>{location.neighboring.join(', ')}</TableCell>
+                        <TableCell>{location.neighboring.map(getLocationNameById).join(', ')}</TableCell>
                         <TableCell>{location.follow_up}</TableCell>
                         <TableCell>{location.bookings}</TableCell>
                         <TableCell>{location.completed}</TableCell>
@@ -489,6 +515,8 @@ export default function Settings() {
         onClose={() => {
           setIsNewLocationModalOpen(false);
           setLocationError(false);
+          setNewLocation("");
+          setNewLocationNeighboring([]);
         }}
         size="md"
       >
@@ -506,11 +534,27 @@ export default function Settings() {
               color={locationError ? "danger" : "default"}
               errorMessage={locationError ? "Location name cannot be empty" : ""}
             />
+            <Select
+              label="Neighboring Locations"
+              placeholder="Select neighboring locations"
+              selectionMode="multiple"
+              selectedKeys={new Set(newLocationNeighboring)}
+              onSelectionChange={(keys) => setNewLocationNeighboring(Array.from(keys) as string[])}
+              isSearchable
+            >
+              {locations.map((location) => (
+                <SelectItem key={location.id} value={location.id}>
+                  {location.name}
+                </SelectItem>
+              ))}
+            </Select>
           </ModalBody>
           <ModalFooter>
             <Button color="default" variant="light" onPress={() => {
               setIsNewLocationModalOpen(false);
               setLocationError(false);
+              setNewLocation("");
+              setNewLocationNeighboring([]);
             }}>
               Cancel
             </Button>
@@ -618,11 +662,12 @@ export default function Settings() {
                   label="Neighboring Locations"
                   placeholder="Select neighboring locations"
                   selectionMode="multiple"
-                  selectedKeys={editingLocation.neighboring}
+                  selectedKeys={new Set(editingLocation.neighboring)}
                   onSelectionChange={(keys) => setEditingLocation({ ...editingLocation, neighboring: Array.from(keys) as string[] })}
+                  isSearchable
                 >
-                  {locations.map((location, index) => (
-                    <SelectItem key={index} value={location.name}>
+                  {locations.map((location) => (
+                    <SelectItem key={location.id} value={location.id}>
                       {location.name}
                     </SelectItem>
                   ))}
