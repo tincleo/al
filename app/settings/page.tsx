@@ -1,18 +1,28 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Card, CardBody, CardHeader, Divider, Input, Button, Select, SelectItem, Switch, Textarea, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tabs, Tab, Checkbox, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from "@nextui-org/react";
-import { title } from "@/components/primitives";
-import { PlusIcon, TrashIcon, PencilIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardBody, CardHeader, Divider, Input, Button, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tabs, Tab, Checkbox, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Switch, Textarea, Select, SelectItem } from "@nextui-org/react";
+import { PlusIcon, TrashIcon, PencilIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { supabase } from "@/lib/supabaseClient";
+import toast from 'react-hot-toast';
 
 const SERVICES = ["Couch", "Chair", "Carpet", "House", "Car seats"];
 const LOCATIONS = ["Bastos", "Mvan", "Nsimeyong", "Biyem-Assi", "Mimboman", "Ngousso", "Emana", "Nkolbisson", "Ekounou", "Essos"];
 const ROLES = ["Admin", "Manager", "Technician", "Marketing"];
 const STATUSES = ["Follow-up", "Scheduled", "Confirmed", "Completed", "Canceled"];
 
+type Location = {
+  id: string;
+  name: string;
+  neighboring: string[];
+  follow_up: number;
+  bookings: number;
+  completed: number;
+};
+
 export default function Settings() {
   const [services, setServices] = useState(SERVICES.map(service => ({ name: service, enabled: true })));
-  const [locations, setLocations] = useState(LOCATIONS.map(location => ({ name: location, neighboring: [] as string[] })));
+  const [locations, setLocations] = useState<Location[]>([]);
   const [roles, setRoles] = useState(ROLES);
   const [statuses, setStatuses] = useState(STATUSES);
 
@@ -39,6 +49,47 @@ export default function Settings() {
   const [deletingItem, setDeletingItem] = useState<any>(null);
   const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onClose: onEditModalClose } = useDisclosure();
   const { isOpen: isDeleteModalOpen, onOpen: onDeleteModalOpen, onClose: onDeleteModalClose } = useDisclosure();
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortDescriptor, setSortDescriptor] = useState({ column: "name", direction: "ascending" });
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  const fetchLocations = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('locations')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setLocations(data || []);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredLocations = useMemo(() => {
+    return locations.filter(location =>
+      location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      location.neighboring.some(neighbor => neighbor.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+  }, [locations, searchQuery]);
+
+  const sortedLocations = useMemo(() => {
+    return [...filteredLocations].sort((a, b) => {
+      const first = a[sortDescriptor.column as keyof Location];
+      const second = b[sortDescriptor.column as keyof Location];
+      const cmp = first < second ? -1 : first > second ? 1 : 0;
+      return sortDescriptor.direction === "descending" ? -cmp : cmp;
+    });
+  }, [filteredLocations, sortDescriptor]);
 
   const handleAddService = () => {
     if (newService.trim()) {
@@ -161,10 +212,81 @@ export default function Settings() {
     }
   };
 
+  const fetchServices = async () => {
+    // Implement this function to fetch services from Supabase
+  };
+
+  const fetchRoles = async () => {
+    // Implement this function to fetch roles from Supabase
+  };
+
+  const fetchStatuses = async () => {
+    // Implement this function to fetch statuses from Supabase
+  };
+
   return (
     <section className="space-y-6">
       <h1 className="font-semibold text-xl lg:text-2xl">Settings</h1>
       <Tabs variant="bordered">
+        <Tab title="Locations">
+          <Card>
+            <CardHeader className="flex justify-between items-center">
+              <h2 className="text-sm font-medium">Manage Locations</h2>
+              <div className="flex items-center gap-4">
+                <Input
+                  placeholder="Search locations..."
+                  value={searchQuery}
+                  onValueChange={setSearchQuery}
+                  startContent={<MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />}
+                />
+                <Button color="primary" size="sm" onPress={() => setIsNewLocationModalOpen(true)}>
+                  <PlusIcon className="w-4 h-4 mr-1" />
+                  New Location
+                </Button>
+              </div>
+            </CardHeader>
+            <Divider />
+            <CardBody>
+              {isLoading ? (
+                <div>Loading locations...</div>
+              ) : (
+                <Table
+                  aria-label="Locations"
+                  sortDescriptor={sortDescriptor}
+                  onSortChange={setSortDescriptor}
+                >
+                  <TableHeader>
+                    <TableColumn key="name" allowsSorting>Location</TableColumn>
+                    <TableColumn key="neighboring" allowsSorting>Neighboring</TableColumn>
+                    <TableColumn key="follow_up" allowsSorting>Follow-up</TableColumn>
+                    <TableColumn key="bookings" allowsSorting>Bookings</TableColumn>
+                    <TableColumn key="completed" allowsSorting>Completed</TableColumn>
+                    <TableColumn>Actions</TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedLocations.map((location) => (
+                      <TableRow key={location.id}>
+                        <TableCell>{location.name}</TableCell>
+                        <TableCell>{location.neighboring.join(', ')}</TableCell>
+                        <TableCell>{location.follow_up}</TableCell>
+                        <TableCell>{location.bookings}</TableCell>
+                        <TableCell>{location.completed}</TableCell>
+                        <TableCell>
+                          <Button isIconOnly size="sm" variant="light" onPress={() => handleEditLocation(location)}>
+                            <PencilIcon className="w-5 h-5" />
+                          </Button>
+                          <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(location, 'locations')}>
+                            <TrashIcon className="w-5 h-5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardBody>
+          </Card>
+        </Tab>
         <Tab title="Services">
           <Card>
             <CardHeader className="flex justify-between items-center">
@@ -197,43 +319,6 @@ export default function Settings() {
                           <PencilIcon className="w-5 h-5" />
                         </Button>
                         <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(service, 'services')}>
-                          <TrashIcon className="w-5 h-5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardBody>
-          </Card>
-        </Tab>
-        <Tab title="Locations">
-          <Card>
-            <CardHeader className="flex justify-between items-center">
-              <h2 className="text-sm font-medium">Manage Locations</h2>
-              <Button color="primary" size="sm" onPress={() => setIsNewLocationModalOpen(true)}>
-                <PlusIcon className="w-4 h-4 mr-1" />
-                New Location
-              </Button>
-            </CardHeader>
-            <Divider />
-            <CardBody>
-              <Table aria-label="Locations">
-                <TableHeader>
-                  <TableColumn>Location</TableColumn>
-                  <TableColumn>Neighboring</TableColumn>
-                  <TableColumn>Actions</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {locations.map((location, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{location.name}</TableCell>
-                      <TableCell>{location.neighboring.join(', ')}</TableCell>
-                      <TableCell>
-                        <Button isIconOnly size="sm" variant="light" onPress={() => handleEditLocation(index)}>
-                          <PencilIcon className="w-5 h-5" />
-                        </Button>
-                        <Button isIconOnly size="sm" variant="light" color="danger">
                           <TrashIcon className="w-5 h-5" />
                         </Button>
                       </TableCell>
@@ -325,7 +410,7 @@ export default function Settings() {
         <Tab title="Mobile App">
           <Card>
             <CardHeader>
-              <h2 className={title({ size: 'sm' })}>Mobile App Settings</h2>
+              <h2 className="text-sm font-medium">Mobile App Settings</h2>
             </CardHeader>
             <Divider />
             <CardBody>
