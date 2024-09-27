@@ -222,10 +222,7 @@ export default function BookingsPage() {
                 </Button>
               </DropdownTrigger>
               <DropdownMenu>
-                <DropdownItem onPress={(e) => {
-                  e.preventDefault(); // Prevent row click event
-                  router.push(`/bookings/${booking.id}`);
-                }}>
+                <DropdownItem onPress={() => router.push(`/bookings/${booking.id}`)}>
                   View
                 </DropdownItem>
                 <DropdownItem>Edit</DropdownItem>
