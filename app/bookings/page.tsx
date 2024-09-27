@@ -39,6 +39,7 @@ import { useRouter } from 'next/navigation';
 import { formatDate } from "../utils"; // Assume we'll create this function
 import { formatPrice } from "../utils"; // We'll create this function
 import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   scheduled: "primary",
@@ -76,6 +77,7 @@ type Booking = {
   created_at: string;
   services: string[];
   location: string;
+  location_name?: string;
   address: string;
   planned_at: string;
   price: number;
@@ -117,17 +119,38 @@ export default function BookingsPage() {
 
   const fetchBookings = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      // Fetch bookings
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching bookings:', error);
-    } else {
-      setBookings(data || []);
+      if (bookingsError) throw bookingsError;
+
+      // Fetch locations
+      const { data: locationsData, error: locationsError } = await supabase
+        .from('locations')
+        .select('id, name');
+
+      if (locationsError) throw locationsError;
+
+      // Create a map of location ids to names
+      const locationMap = new Map(locationsData.map(loc => [loc.id, loc.name]));
+
+      // Map bookings with location names
+      const bookingsWithLocationNames = bookingsData.map(booking => ({
+        ...booking,
+        location_name: locationMap.get(booking.location) || 'Unknown'
+      }));
+
+      setBookings(bookingsWithLocationNames);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load bookings');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const filteredItems = React.useMemo(() => {
@@ -136,7 +159,7 @@ export default function BookingsPage() {
     if (hasSearchFilter) {
       filteredBookings = filteredBookings.filter((booking) =>
         booking.services.join(" ").toLowerCase().includes(filterValue.toLowerCase()) ||
-        booking.location.toLowerCase().includes(filterValue.toLowerCase())
+        booking.location_name?.toLowerCase().includes(filterValue.toLowerCase())
       );
     }
     if (statusFilter !== "all" && Array.from(statusFilter).length !== statusOptions.length) {
@@ -252,6 +275,8 @@ export default function BookingsPage() {
         );
       case "address":
         return cellValue as string;
+      case "location":
+        return booking.location_name || 'Unknown';
       default:
         return cellValue as React.ReactNode;
     }

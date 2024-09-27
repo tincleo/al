@@ -128,7 +128,24 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
       state: initialData?.state || 'pending', // Preserve existing state or use 'pending' for new bookings
     };
 
-    onBookingCreated(bookingData);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert([bookingData])
+        .select();
+
+      if (error) {
+        console.error('Error creating booking:', error);
+        toast.error('Failed to create booking');
+      } else {
+        console.log('Booking created:', data);
+        toast.success('Booking created successfully');
+        onBookingCreated(data[0]);
+      }
+    } catch (error) {
+      console.error('Error creating booking:', error);
+      toast.error('Failed to create booking');
+    }
   };
 
   return (
