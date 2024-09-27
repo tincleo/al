@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button, Autocomplete, AutocompleteItem, Input, Select, SelectItem, Switch, Textarea } from "@nextui-org/react";
 import { CustomCheckbox } from './CustomCheckbox';
 import { supabase } from "@/lib/supabaseClient";
@@ -10,6 +10,11 @@ const SERVICES = [
   { name: "Car interior", value: "car_interior" },
   { name: "Mattress", value: "mattress" },
 ] as const;
+
+interface Location {
+  id: string;
+  name: string;
+}
 
 const LOCATIONS = [
   { label: "Bastos", value: "Bastos" },
@@ -51,7 +56,26 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
     moreInfo: initialData?.more_info || "",
   });
 
-  const [error, setError] = useState<string | null>(null);
+  const [invalidFields, setInvalidFields] = useState<Set<string>>(new Set());
+  const [locations, setLocations] = useState<Location[]>([]);
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  const fetchLocations = async () => {
+    const { data, error } = await supabase
+      .from('locations')
+      .select('id, name')
+      .order('name');
+
+    if (error) {
+      console.error('Error fetching locations:', error);
+      toast.error('Failed to load locations');
+    } else {
+      setLocations(data || []);
+    }
+  };
 
   const handleInputChange = useCallback((field: string, value: string | boolean) => {
     if (field === 'phone') {
@@ -72,11 +96,21 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    
+    const newInvalidFields = new Set<string>();
+    
+    if (!formData.services.length) newInvalidFields.add('services');
+    if (!formData.location) newInvalidFields.add('location');
+    if (!formData.phone) newInvalidFields.add('phone');
+    if (!formData.price) newInvalidFields.add('price');
+    if (!formData.plannedFor) newInvalidFields.add('plannedFor');
 
-    // Validate mandatory fields
-    if (!formData.services.length || !formData.location || !formData.address || !formData.phone || !formData.price || !formData.plannedFor) {
-      setError("Please fill in all required fields.");
+    // Remove address from validation as it's not mandatory
+    // if (!formData.address) newInvalidFields.add('address');
+
+    setInvalidFields(newInvalidFields);
+
+    if (newInvalidFields.size > 0) {
       return;
     }
 
@@ -99,10 +133,9 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
-      {error && <div className="text-red-500">{error}</div>}
       <div>
         <label className="block text-small font-medium text-foreground pb-1.5">
-          Cleaning service*
+          Cleaning service
         </label>
         <div className="flex flex-wrap gap-2">
           {SERVICES.map((service) => (
@@ -110,6 +143,7 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
               key={service.value}
               isSelected={formData.services.includes(service.value)}
               onPress={() => toggleService(service.value)}
+              className={`transition-colors ${formData.services.includes(service.value) ? "bg-blue-500 text-white border-blue-500" : ""}`}
             >
               {service.name}
             </CustomCheckbox>
@@ -118,34 +152,37 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
       </div>
       <div className="grid grid-cols-2 gap-4">
         <Autocomplete
-          label="Location*"
+          label="Location"
           placeholder="Select a location"
           isRequired
           onSelectionChange={(value) => handleInputChange('location', value as string)}
+          isInvalid={invalidFields.has('location')}
         >
-          {LOCATIONS.map((location) => (
-            <AutocompleteItem key={location.value} value={location.value}>
-              {location.label}
+          {locations.map((location) => (
+            <AutocompleteItem key={location.id} value={location.id}>
+              {location.name}
             </AutocompleteItem>
           ))}
         </Autocomplete>
         <Input
-          label="Address"
+          label="Exact address"
           placeholder="Enter address"
           value={formData.address}
           onValueChange={(value) => handleInputChange('address', value)}
+          // Remove isInvalid and isRequired props
         />
         <Input
-          label="Phone*"
+          label="Phone"
           placeholder="699 88 77 66"
           type="tel"
           isRequired
           value={formData.phone}
           onValueChange={(value) => handleInputChange('phone', value)}
           maxLength={9}
+          isInvalid={invalidFields.has('phone')}
         />
         <Input
-          label="Price*"
+          label="Price"
           placeholder="20 000"
           type="number"
           isRequired
@@ -156,17 +193,19 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
           }
           value={formData.price}
           onValueChange={(value) => handleInputChange('price', value)}
+          isInvalid={invalidFields.has('price')}
         />
         <Input
-          label="Planned for*"
+          label="Planned for"
           placeholder="Select date and time"
           type="datetime-local"
           isRequired
           value={formData.plannedFor}
           onValueChange={(value) => handleInputChange('plannedFor', value)}
+          isInvalid={invalidFields.has('plannedFor')}
         />
         <Select
-          label="Status*"
+          label="Status"
           placeholder="Select status"
           selectedKeys={[formData.status]}
           onChange={(e) => handleInputChange('status', e.target.value)}
