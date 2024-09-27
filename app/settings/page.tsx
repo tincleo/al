@@ -22,7 +22,7 @@ type Location = {
 };
 
 export default function Settings() {
-  const [services, setServices] = useState(SERVICES.map(service => ({ name: service, enabled: true })));
+  const [services, setServices] = useState<Array<{ id: string, name: string, enabled: boolean }>>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [roles, setRoles] = useState(ROLES);
   const [statuses, setStatuses] = useState(STATUSES);
@@ -57,6 +57,7 @@ export default function Settings() {
 
   useEffect(() => {
     fetchLocations();
+    fetchServices();
   }, []);
 
   const fetchLocations = async () => {
@@ -71,6 +72,24 @@ export default function Settings() {
       setLocations(data || []);
     } catch (error) {
       console.error('Error fetching locations:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchServices = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('id, name, enabled')
+        .order('name');
+
+      if (error) throw error;
+      setServices(data || []);
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      toast.error('Failed to fetch services. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -92,12 +111,26 @@ export default function Settings() {
     });
   }, [filteredLocations, sortDescriptor]);
 
-  const handleAddService = () => {
+  const handleAddService = async () => {
     if (newService.trim()) {
-      setServices([...services, { name: newService, enabled: true }]);
-      setNewService("");
-      setIsNewServiceModalOpen(false);
-      setServiceError(false);
+      try {
+        const { data, error } = await supabase
+          .from('services')
+          .insert({ name: newService, enabled: true })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setServices([...services, data]);
+        setNewService("");
+        setIsNewServiceModalOpen(false);
+        setServiceError(false);
+        toast.success('Service added successfully!');
+      } catch (error) {
+        console.error('Error adding service:', error);
+        toast.error('Failed to add service. Please try again.');
+      }
     } else {
       setServiceError(true);
     }
@@ -168,10 +201,23 @@ export default function Settings() {
     }
   };
 
-  const handleToggleService = (index: number) => {
-    const updatedServices = [...services];
-    updatedServices[index].enabled = !updatedServices[index].enabled;
-    setServices(updatedServices);
+  const handleToggleService = async (id: string, enabled: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('services')
+        .update({ enabled: !enabled })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setServices(services.map(service => 
+        service.id === id ? { ...service, enabled: !enabled } : service
+      ));
+      toast.success('Service updated successfully!');
+    } catch (error) {
+      console.error('Error updating service:', error);
+      toast.error('Failed to update service. Please try again.');
+    }
   };
 
   const handleEditLocation = (location: Location) => {
@@ -212,9 +258,21 @@ export default function Settings() {
     onEditModalOpen();
   };
 
-  const handleDelete = async (item: Location, type: string) => {
-    setDeletingItem({ ...item, type });
-    onDeleteModalOpen();
+  const handleDeleteService = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setServices(services.filter(service => service.id !== id));
+      toast.success('Service deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting service:', error);
+      toast.error('Failed to delete service. Please try again.');
+    }
   };
 
   const handleDeleteConfirm = async () => {
@@ -235,10 +293,6 @@ export default function Settings() {
         toast.error('Failed to delete location. Please try again.');
       }
     }
-  };
-
-  const fetchServices = async () => {
-    // Implement this function to fetch services from Supabase
   };
 
   const fetchRoles = async () => {
@@ -324,34 +378,38 @@ export default function Settings() {
             </CardHeader>
             <Divider />
             <CardBody>
-              <Table aria-label="Cleaning Services">
-                <TableHeader>
-                  <TableColumn>Service</TableColumn>
-                  <TableColumn>Enabled</TableColumn>
-                  <TableColumn>Actions</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {services.map((service, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{service.name}</TableCell>
-                      <TableCell>
-                        <Switch
-                          isSelected={service.enabled}
-                          onValueChange={() => handleToggleService(index)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(service, 'services')}>
-                          <PencilIcon className="w-5 h-5" />
-                        </Button>
-                        <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(service, 'services')}>
-                          <TrashIcon className="w-5 h-5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {isLoading ? (
+                <div>Loading services...</div>
+              ) : (
+                <Table aria-label="Cleaning Services">
+                  <TableHeader>
+                    <TableColumn>Service</TableColumn>
+                    <TableColumn>Enabled</TableColumn>
+                    <TableColumn>Actions</TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {services.map((service) => (
+                      <TableRow key={service.id}>
+                        <TableCell>{service.name}</TableCell>
+                        <TableCell>
+                          <Switch
+                            isSelected={service.enabled}
+                            onValueChange={() => handleToggleService(service.id, service.enabled)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(service, 'services')}>
+                            <PencilIcon className="w-5 h-5" />
+                          </Button>
+                          <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDeleteService(service.id)}>
+                            <TrashIcon className="w-5 h-5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardBody>
           </Card>
         </Tab>
