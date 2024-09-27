@@ -408,6 +408,9 @@ export default function Settings() {
                   <TableHeader>
                     <TableColumn>Service</TableColumn>
                     <TableColumn>Enabled</TableColumn>
+                    <TableColumn>Follow-up</TableColumn>
+                    <TableColumn>Bookings</TableColumn>
+                    <TableColumn>Completed</TableColumn>
                     <TableColumn>Actions</TableColumn>
                   </TableHeader>
                   <TableBody>
@@ -420,6 +423,9 @@ export default function Settings() {
                             onValueChange={() => handleToggleService(service.id, service.enabled)}
                           />
                         </TableCell>
+                        <TableCell>{service.follow_up || 0}</TableCell>
+                        <TableCell>{service.bookings || 0}</TableCell>
+                        <TableCell>{service.completed || 0}</TableCell>
                         <TableCell>
                           <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(service, 'services')}>
                             <PencilIcon className="w-5 h-5" />
@@ -433,6 +439,47 @@ export default function Settings() {
                   </TableBody>
                 </Table>
               )}
+            </CardBody>
+          </Card>
+        </Tab>
+        <Tab title="Status">
+          <Card>
+            <CardHeader className="flex justify-between items-center">
+              <h2 className="text-sm font-medium">Manage Booking Statuses</h2>
+              <Button color="primary" size="sm" onPress={() => setIsNewStatusModalOpen(true)}>
+                <PlusIcon className="w-4 h-4 mr-1" />
+                New Status
+              </Button>
+            </CardHeader>
+            <Divider />
+            <CardBody>
+              <Table aria-label="Booking Statuses">
+                <TableHeader>
+                  <TableColumn>Status</TableColumn>
+                  <TableColumn>Follow-up</TableColumn>
+                  <TableColumn>Bookings</TableColumn>
+                  <TableColumn>Completed</TableColumn>
+                  <TableColumn>Actions</TableColumn>
+                </TableHeader>
+                <TableBody>
+                  {statuses.map((status, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{status}</TableCell>
+                      <TableCell>{status.follow_up || 0}</TableCell>
+                      <TableCell>{status.bookings || 0}</TableCell>
+                      <TableCell>{status.completed || 0}</TableCell>
+                      <TableCell>
+                        <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(status, 'statuses')}>
+                          <PencilIcon className="w-5 h-5" />
+                        </Button>
+                        <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(status, 'statuses')}>
+                          <TrashIcon className="w-5 h-5" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardBody>
           </Card>
         </Tab>
@@ -464,41 +511,6 @@ export default function Settings() {
                           <Checkbox>Delete</Checkbox>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Button isIconOnly size="sm" variant="light">
-                          <PencilIcon className="w-5 h-5" />
-                        </Button>
-                        <Button isIconOnly size="sm" variant="light" color="danger">
-                          <TrashIcon className="w-5 h-5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardBody>
-          </Card>
-        </Tab>
-        <Tab title="Bookings">
-          <Card>
-            <CardHeader className="flex justify-between items-center">
-              <h2 className="text-sm font-medium">Manage Booking Statuses</h2>
-              <Button color="primary" size="sm" onPress={() => setIsNewStatusModalOpen(true)}>
-                <PlusIcon className="w-4 h-4 mr-1" />
-                New Status
-              </Button>
-            </CardHeader>
-            <Divider />
-            <CardBody>
-              <Table aria-label="Booking Statuses">
-                <TableHeader>
-                  <TableColumn>Status</TableColumn>
-                  <TableColumn>Actions</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {statuses.map((status, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{status}</TableCell>
                       <TableCell>
                         <Button isIconOnly size="sm" variant="light">
                           <PencilIcon className="w-5 h-5" />
