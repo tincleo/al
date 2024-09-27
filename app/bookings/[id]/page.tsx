@@ -18,6 +18,7 @@ type Booking = {
   created_at: string;
   services: string[];
   location: string;
+  location_name?: string;
   address: string;
   planned_at: string;
   price: number;
@@ -66,18 +67,37 @@ export default function BookingDetails() {
   }, [bookingId]);
 
   const fetchBookingDetails = async () => {
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', bookingId)
-      .single();
+    try {
+      const { data: bookingData, error: bookingError } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', bookingId)
+        .single();
 
-    if (error) {
+      if (bookingError) throw bookingError;
+
+      // Fetch the location name
+      const { data: locationData, error: locationError } = await supabase
+        .from('locations')
+        .select('name')
+        .eq('id', bookingData.location)
+        .single();
+
+      if (locationError) {
+        console.error('Error fetching location name:', locationError);
+      }
+
+      const bookingWithLocationName = {
+        ...bookingData,
+        location_name: locationData?.name || 'Unknown Location'
+      };
+
+      setBooking(bookingWithLocationName);
+      if (bookingWithLocationName.amount_paid) setAmountPaid(bookingWithLocationName.amount_paid.toString());
+      setSelectedTeamMembers(new Set(bookingWithLocationName.assigned_to.map((member: { id: string }) => member.id)));
+    } catch (error) {
       console.error('Error fetching booking details:', error);
-    } else {
-      setBooking(data);
-      if (data.amount_paid) setAmountPaid(data.amount_paid.toString());
-      setSelectedTeamMembers(new Set(data.assigned_to.map((member: { id: string }) => member.id)));
+      toast.error('Failed to load booking details');
     }
   };
 
@@ -366,7 +386,7 @@ export default function BookingDetails() {
               <div className="flex items-center space-x-2">
                 <MapPinIcon className="w-5 h-5 text-primary" />
                 <span className="font-semibold">Location:</span>
-                <span>{booking.location}</span>
+                <span>{booking.location_name || 'Unknown Location'}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <MapPinIcon className="w-5 h-5 text-primary" />
