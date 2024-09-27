@@ -303,6 +303,29 @@ export default function Settings() {
     // Implement this function to fetch statuses from Supabase
   };
 
+  const handleEditSave = async (item: any) => {
+    if (item.type === 'services') {
+      try {
+        const { error } = await supabase
+          .from('services')
+          .update({ name: item.name })
+          .eq('id', item.id);
+
+        if (error) throw error;
+
+        setServices(services.map(service => 
+          service.id === item.id ? { ...service, name: item.name } : service
+        ));
+        toast.success('Service updated successfully!');
+      } catch (error) {
+        console.error('Error updating service:', error);
+        toast.error('Failed to update service. Please try again.');
+      }
+    }
+    // Add more conditions here for other types (locations, roles, statuses) if needed
+    onEditModalClose();
+  };
+
   return (
     <section className="space-y-6">
       <Toaster position="top-center" reverseOrder={false} />
