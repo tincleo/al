@@ -24,7 +24,6 @@ export function formatDate(dateString: string): string {
       return `${diffDays}d ago at ${formatTime(date)}`;
     } else {
       return date.toLocaleString('en-US', { 
-        year: 'numeric', 
         month: 'short', 
         day: 'numeric', 
         hour: '2-digit', 

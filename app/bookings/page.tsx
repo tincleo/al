@@ -48,6 +48,7 @@ const statusColorMap: Record<string, ChipProps["color"]> = {
 };
 
 const columns = [
+  { name: "#", uid: "rowNumber", sortable: false },
   { name: "CREATED", uid: "created_at", sortable: true },
   { name: "ID", uid: "id", sortable: true },
   { name: "SERVICES", uid: "services", sortable: true },
@@ -68,7 +69,7 @@ const statusOptions = [
   { name: "Canceled", uid: "canceled" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["created_at", "services", "location", "planned_at", "price", "status", "assigned_to", "client_phone"];
+const INITIAL_VISIBLE_COLUMNS = ["rowNumber", "created_at", "services", "location", "planned_at", "price", "status", "client_phone"];
 
 type Booking = {
   id: number;
@@ -160,16 +161,34 @@ export default function BookingsPage() {
     return [...items].sort((a: Booking, b: Booking) => {
       const first = a[sortDescriptor.column as keyof Booking];
       const second = b[sortDescriptor.column as keyof Booking];
-      const cmp = first < second ? -1 : first > second ? 1 : 0;
+      let cmp = 0;
+
+      if (sortDescriptor.column === 'rowNumber') {
+        // For rowNumber, we want to sort based on the index in the original bookings array
+        cmp = bookings.findIndex(booking => booking.id === b.id) - bookings.findIndex(booking => booking.id === a.id);
+      } else {
+        cmp = first < second ? -1 : first > second ? 1 : 0;
+      }
 
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
-  }, [sortDescriptor, items]);
+  }, [sortDescriptor, items, bookings]);
 
   const renderCell = React.useCallback((booking: Booking, columnKey: React.Key) => {
     const cellValue = booking[columnKey as keyof Booking];
 
     switch (columnKey) {
+      case "rowNumber":
+        if (!booking || !booking.id || !Array.isArray(bookings)) {
+          console.error('Invalid booking or bookings array:', { booking, bookingsLength: bookings?.length });
+          return 'N/A';
+        }
+        const index = bookings.findIndex(b => b.id === booking.id);
+        if (index === -1) {
+          console.error('Booking not found in bookings array:', booking);
+          return 'N/A';
+        }
+        return bookings.length - index;
       case "created_at":
       case "planned_at":
         return formatDate(cellValue as string);
@@ -236,7 +255,7 @@ export default function BookingsPage() {
       default:
         return cellValue as React.ReactNode;
     }
-  }, [router]);
+  }, [bookings]);
 
   const onNextPage = React.useCallback(() => {
     if (page < pages) {
@@ -387,6 +406,11 @@ export default function BookingsPage() {
     fetchBookings(); // Refresh the bookings list
   };
 
+  // Add this logging somewhere in your component, perhaps in a useEffect
+  useEffect(() => {
+    console.log('Bookings state:', bookings);
+  }, [bookings]);
+
   return (
     <section className="flex flex-col gap-4">
       <Toaster position="top-right" />
@@ -412,7 +436,7 @@ export default function BookingsPage() {
             {(column) => (
               <TableColumn
                 key={column.uid}
-                align={column.uid === "actions" ? "center" : "start"}
+                align={column.uid === "actions" ? "center" : column.uid === "rowNumber" ? "center" : "start"}
                 allowsSorting={column.sortable}
               >
                 {column.name}
