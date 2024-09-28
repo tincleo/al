@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch } from "@nextui-org/react";
+import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination } from "@nextui-org/react";
 import { title } from "../../components/primitives";
 import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -58,6 +58,8 @@ export default function TeamMemberDetails() {
   const [editErrors, setEditErrors] = useState<Partial<Record<keyof TeamMember, string>>>({});
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const [isClearBalanceModalOpen, setIsClearBalanceModalOpen] = useState(false);
+  const [balanceHistoryPage, setBalanceHistoryPage] = useState(1);
+  const balanceHistoryPerPage = 6;
 
   useEffect(() => {
     fetchMemberDetails();
@@ -338,11 +340,23 @@ export default function TeamMemberDetails() {
 
   // Mock data for balance history (we'll replace this with real data later)
   const balanceHistory = [
-    { id: 1, amount: 5000, type: 'increase', date: '2023-06-15T10:30:00Z', reason: 'Salary payment' },
-    { id: 2, amount: -2000, type: 'decrease', date: '2023-06-20T14:45:00Z', reason: 'Advance payment' },
-    { id: 3, amount: 3000, type: 'increase', date: '2023-06-25T09:15:00Z', reason: 'Bonus' },
-    { id: 4, amount: -1000, type: 'decrease', date: '2023-06-30T16:00:00Z', reason: 'Equipment cost' },
+    { id: 1, amount: 5000, type: 'increase', date: '2023-06-15T10:30:00Z', reason: 'Salary payment', updatedBy: 'John Doe' },
+    { id: 2, amount: -2000, type: 'decrease', date: '2023-06-20T14:45:00Z', reason: 'Advance payment', updatedBy: 'Jane Smith' },
+    { id: 3, amount: 3000, type: 'increase', date: '2023-06-25T09:15:00Z', reason: 'Bonus', updatedBy: 'John Doe' },
+    { id: 4, amount: -1000, type: 'decrease', date: '2023-06-30T16:00:00Z', reason: 'Equipment cost', updatedBy: 'Jane Smith' },
+    // Add more mock data to test pagination
+    { id: 5, amount: 2000, type: 'increase', date: '2023-07-05T11:30:00Z', reason: 'Performance bonus', updatedBy: 'John Doe' },
+    { id: 6, amount: -500, type: 'decrease', date: '2023-07-10T13:45:00Z', reason: 'Uniform deduction', updatedBy: 'Jane Smith' },
+    { id: 7, amount: 4000, type: 'increase', date: '2023-07-15T10:00:00Z', reason: 'Overtime payment', updatedBy: 'John Doe' },
+    { id: 8, amount: -1500, type: 'decrease', date: '2023-07-20T15:30:00Z', reason: 'Advance payment', updatedBy: 'Jane Smith' },
   ];
+
+  const paginatedBalanceHistory = balanceHistory.slice(
+    (balanceHistoryPage - 1) * balanceHistoryPerPage,
+    balanceHistoryPage * balanceHistoryPerPage
+  );
+
+  const balanceHistoryPages = Math.ceil(balanceHistory.length / balanceHistoryPerPage);
 
   if (!member) return <div>Loading...</div>;
 
@@ -581,7 +595,7 @@ export default function TeamMemberDetails() {
             <Divider />
             <CardBody>
               <div className="space-y-2">
-                {balanceHistory.map((entry) => (
+                {paginatedBalanceHistory.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between p-2 rounded-lg bg-default-100">
                     <div className="flex items-center space-x-3">
                       <div className={`p-1.5 rounded-full ${entry.type === 'increase' ? 'bg-success-100' : 'bg-danger-100'}`}>
@@ -594,7 +608,7 @@ export default function TeamMemberDetails() {
                       <div>
                         <p className="font-semibold text-sm">{entry.reason}</p>
                         <p className="text-xs text-default-400">
-                          {new Date(entry.date).toLocaleString()}
+                          {new Date(entry.date).toLocaleString()} by {entry.updatedBy}
                         </p>
                       </div>
                     </div>
@@ -603,6 +617,13 @@ export default function TeamMemberDetails() {
                     </div>
                   </div>
                 ))}
+              </div>
+              <div className="flex justify-center mt-4">
+                <Pagination
+                  total={balanceHistoryPages}
+                  page={balanceHistoryPage}
+                  onChange={setBalanceHistoryPage}
+                />
               </div>
             </CardBody>
           </Card>
