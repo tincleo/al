@@ -34,6 +34,9 @@ import { title } from "../components/primitives";
 import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
+import { WhatsAppIcon } from "../components/WhatsAppIcon";
+// Remove or comment out the PhoneIcon import
+// import { PhoneIcon } from "../components/PhoneIcon";
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   active: "success",
@@ -56,7 +59,7 @@ const statusOptions = [
   { name: "Suspended", uid: "suspended" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["name", "phone1", "contract_start", "status", "salary", "current_balance", "actions"];
+const INITIAL_VISIBLE_COLUMNS = ["name", "phone1", "contract_start", "status", "current_balance", "actions"];
 
 type TeamMember = {
   id: number;
@@ -80,7 +83,7 @@ export default function TeamPage() {
   const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]));
   const [visibleColumns, setVisibleColumns] = React.useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
   const [statusFilter, setStatusFilter] = React.useState<Selection>("all");
-  const [rowsPerPage, setRowsPerPage] = React.useState(5);
+  const [rowsPerPage, setRowsPerPage] = React.useState(20);
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
     column: "name",
     direction: "ascending",
@@ -161,14 +164,16 @@ export default function TeamPage() {
       case "current_balance":
         return `${(cellValue as number).toLocaleString()} FCFA`;
       case "phone1":
+        const formattedPhone = (cellValue as string).replace(/(\d{3})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4');
         return (
           <Dropdown>
             <DropdownTrigger>
               <Button
                 variant="bordered"
                 size="sm"
+                startContent={<WhatsAppIcon size={16} />}
               >
-                {cellValue as string}
+                {formattedPhone}
               </Button>
             </DropdownTrigger>
             <DropdownMenu aria-label="Phone Actions">
@@ -177,6 +182,12 @@ export default function TeamPage() {
             </DropdownMenu>
           </Dropdown>
         );
+      case "contract_start":
+        return new Date(cellValue as string).toLocaleDateString('en-US', { 
+          day: 'numeric', 
+          month: 'long', 
+          year: 'numeric' 
+        });
       case "actions":
         return (
           <Button 
@@ -301,10 +312,12 @@ export default function TeamPage() {
             <select
               className="bg-transparent outline-none text-default-400 text-small"
               onChange={onRowsPerPageChange}
+              value={rowsPerPage}
             >
               <option value="5">5</option>
               <option value="10">10</option>
               <option value="15">15</option>
+              <option value="20">20</option>
             </select>
           </label>
         </div>
@@ -319,6 +332,7 @@ export default function TeamPage() {
     teamMembers.length,
     hasSearchFilter,
     handleAddNewMember,
+    rowsPerPage,
   ]);
 
   const bottomContent = React.useMemo(() => {
@@ -419,7 +433,7 @@ export default function TeamPage() {
   return (
     <section className="flex flex-col gap-4">
       <Toaster position="top-center" reverseOrder={false} />
-      <h1 className={title({ size: "sm" })}>Team Management</h1>
+      <h1 className={title({ size: "sm" })}>Alpha Team</h1>
       <Table
         aria-label="Example table with custom cells, pagination and sorting"
         isHeaderSticky
