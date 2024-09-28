@@ -21,11 +21,19 @@ type Location = {
   completed: number;
 };
 
+type BookingStatus = {
+  id: string;
+  name: string;
+  follow_up: number;
+  bookings: number;
+  completed: number;
+};
+
 export default function Settings() {
   const [services, setServices] = useState<Array<{ id: string, name: string, enabled: boolean }>>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [roles, setRoles] = useState(ROLES);
-  const [statuses, setStatuses] = useState(STATUSES);
+  const [statuses, setStatuses] = useState<BookingStatus[]>([]);
 
   const [newService, setNewService] = useState("");
   const [newLocation, setNewLocation] = useState("");
@@ -58,6 +66,7 @@ export default function Settings() {
   useEffect(() => {
     fetchLocations();
     fetchServices();
+    fetchStatuses();
   }, []);
 
   const fetchLocations = async () => {
@@ -90,6 +99,24 @@ export default function Settings() {
     } catch (error) {
       console.error('Error fetching services:', error);
       toast.error('Failed to fetch services. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchStatuses = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('booking_status')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setStatuses(data || []);
+    } catch (error) {
+      console.error('Error fetching statuses:', error);
+      toast.error('Failed to fetch statuses. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -299,10 +326,6 @@ export default function Settings() {
     // Implement this function to fetch roles from Supabase
   };
 
-  const fetchStatuses = async () => {
-    // Implement this function to fetch statuses from Supabase
-  };
-
   const handleEditSave = async (item: any) => {
     if (item.type === 'services') {
       try {
@@ -453,33 +476,28 @@ export default function Settings() {
             </CardHeader>
             <Divider />
             <CardBody>
-              <Table aria-label="Booking Statuses">
-                <TableHeader>
-                  <TableColumn>Status</TableColumn>
-                  <TableColumn>Follow-up</TableColumn>
-                  <TableColumn>Bookings</TableColumn>
-                  <TableColumn>Completed</TableColumn>
-                  <TableColumn>Actions</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {statuses.map((status, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{status}</TableCell>
-                      <TableCell>{status.follow_up || 0}</TableCell>
-                      <TableCell>{status.bookings || 0}</TableCell>
-                      <TableCell>{status.completed || 0}</TableCell>
-                      <TableCell>
-                        <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(status, 'statuses')}>
-                          <PencilIcon className="w-5 h-5" />
-                        </Button>
-                        <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(status, 'statuses')}>
-                          <TrashIcon className="w-5 h-5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              {isLoading ? (
+                <div>Loading statuses...</div>
+              ) : (
+                <Table aria-label="Booking Statuses">
+                  <TableHeader>
+                    <TableColumn>Status</TableColumn>
+                    <TableColumn>Follow-up</TableColumn>
+                    <TableColumn>Bookings</TableColumn>
+                    <TableColumn>Completed</TableColumn>
+                  </TableHeader>
+                  <TableBody>
+                    {statuses.map((status) => (
+                      <TableRow key={status.id}>
+                        <TableCell>{status.name}</TableCell>
+                        <TableCell>{status.follow_up}</TableCell>
+                        <TableCell>{status.bookings}</TableCell>
+                        <TableCell>{status.completed}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardBody>
           </Card>
         </Tab>
