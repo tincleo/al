@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination, Select, SelectItem } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
@@ -38,6 +38,23 @@ const formatCurrency = (amount: number | null | undefined): string => {
 
 const getAvatarUrl = (fileName: string) => {
   return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/alpha/${fileName}`;
+};
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'short', // This will use short month names (e.g., Sep instead of September)
+    day: 'numeric'
+  }) + ' at ' + date.toLocaleTimeString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false 
+  });
+};
+
+const capitalizeFirstLetter = (string: string) => {
+  return string.charAt(0).toUpperCase() + string.slice(1);
 };
 
 export default function TeamMemberDetails() {
@@ -95,7 +112,7 @@ export default function TeamMemberDetails() {
   const fetchBalanceHistory = async () => {
     const { data, error } = await supabase
       .from('balance_history')
-      .select('*')
+      .select('id, amount, type, reason, previous_balance, new_balance, created_at')
       .eq('team_member_id', memberId)
       .order('created_at', { ascending: false });
 
@@ -146,7 +163,8 @@ export default function TeamMemberDetails() {
       return;
     }
 
-    const newBalance = Math.round(member.current_balance + changeAmount);
+    const previousBalance = member.current_balance;
+    const newBalance = Math.round(previousBalance + changeAmount);
 
     const { error: updateError } = await supabase
       .from('team')
@@ -165,8 +183,9 @@ export default function TeamMemberDetails() {
         team_member_id: memberId,
         amount: changeAmount,
         type: changeAmount > 0 ? 'increase' : 'decrease',
-        reason: balanceReason,
-        // Remove the updated_by field
+        reason: capitalizeFirstLetter(balanceReason),
+        previous_balance: previousBalance,
+        new_balance: newBalance
       });
 
     if (historyError) {
@@ -631,14 +650,27 @@ export default function TeamMemberDetails() {
                         )}
                       </div>
                       <div>
-                        <p className="font-semibold text-sm">{entry.reason}</p>
+                        <p className="font-semibold text-sm">{capitalizeFirstLetter(entry.reason)}</p>
                         <p className="text-xs text-default-400">
-                          {new Date(entry.created_at).toLocaleString()}
+                          {formatDate(entry.created_at)}
                         </p>
                       </div>
                     </div>
-                    <div className={`font-bold text-sm ${entry.type === 'increase' ? 'text-success-500' : 'text-danger-500'}`}>
-                      {entry.type === 'increase' ? '+' : '-'} {Math.abs(entry.amount).toLocaleString()} FCFA
+                    <div className="text-right">
+                      <div className={`font-bold text-sm ${entry.type === 'increase' ? 'text-success-500' : 'text-danger-500'}`}>
+                        {entry.type === 'increase' ? '+' : '-'} {Math.abs(entry.amount).toLocaleString()} FCFA
+                      </div>
+                      <p className="text-xs text-default-400 flex items-center justify-end space-x-2">
+                        <span className="flex items-center">
+                          <ArrowLeftIcon className="w-3 h-3 mr-1" />
+                          {entry.previous_balance?.toLocaleString() ?? 'N/A'} FCFA
+                        </span>
+                        <span>|</span>
+                        <span className="flex items-center">
+                          <ArrowRightIcon className="w-3 h-3 mr-1" />
+                          {entry.new_balance?.toLocaleString() ?? 'N/A'} FCFA
+                        </span>
+                      </p>
                     </div>
                   </div>
                 ))}

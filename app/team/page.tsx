@@ -472,7 +472,8 @@ export default function TeamPage() {
       return;
     }
 
-    const newBalance = Math.round(selectedMember.current_balance + changeAmount);
+    const previousBalance = selectedMember.current_balance;
+    const newBalance = Math.round(previousBalance + changeAmount);
 
     const { error: updateError } = await supabase
       .from('team')
@@ -492,7 +493,8 @@ export default function TeamPage() {
         amount: changeAmount,
         type: changeAmount > 0 ? 'increase' : 'decrease',
         reason: balanceReason,
-        // Remove the updated_by field
+        previous_balance: previousBalance,
+        new_balance: newBalance
       });
 
     if (historyError) {
