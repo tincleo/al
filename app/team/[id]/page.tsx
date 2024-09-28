@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
@@ -336,6 +336,14 @@ export default function TeamMemberDetails() {
     }
   };
 
+  // Mock data for balance history (we'll replace this with real data later)
+  const balanceHistory = [
+    { id: 1, amount: 5000, type: 'increase', date: '2023-06-15T10:30:00Z', reason: 'Salary payment' },
+    { id: 2, amount: -2000, type: 'decrease', date: '2023-06-20T14:45:00Z', reason: 'Advance payment' },
+    { id: 3, amount: 3000, type: 'increase', date: '2023-06-25T09:15:00Z', reason: 'Bonus' },
+    { id: 4, amount: -1000, type: 'decrease', date: '2023-06-30T16:00:00Z', reason: 'Equipment cost' },
+  ];
+
   if (!member) return <div>Loading...</div>;
 
   return (
@@ -409,7 +417,7 @@ export default function TeamMemberDetails() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="p-4">
             <CardHeader className="flex justify-between items-center">
-              <h2 className={title({ size: 'sm' })}>{member.name}'s Info</h2>
+              <h2 className="text-lg font-semibold">{member.name}'s Info</h2>
               <Chip color={member.status === 'active' ? 'success' : 'danger'}>
                 {member.status}
               </Chip>
@@ -568,35 +576,68 @@ export default function TeamMemberDetails() {
 
           <Card className="p-4">
             <CardHeader>
-              <h2 className={title({ size: 'sm' })}>Recent Jobs</h2>
+              <h2 className="text-lg font-semibold">Balance History</h2>
             </CardHeader>
             <Divider />
             <CardBody>
-              <Table aria-label="Recent jobs" removeWrapper>
-                <TableHeader>
-                  <TableColumn>DATE</TableColumn>
-                  <TableColumn>SERVICE</TableColumn>
-                  <TableColumn>LOCATION</TableColumn>
-                  <TableColumn>PRICE</TableColumn>
-                  <TableColumn>STATUS</TableColumn>
-                </TableHeader>
-                <TableBody>
-                  {/* Keep the existing static data for now */}
-                  <TableRow>
-                    <TableCell>2023-06-01</TableCell>
-                    <TableCell>Cleaning</TableCell>
-                    <TableCell>New York</TableCell>
-                    <TableCell>{formatCurrency(150)}</TableCell>
-                    <TableCell>
-                      <Chip color="success" size="sm">Completed</Chip>
-                    </TableCell>
-                  </TableRow>
-                  {/* Add more rows as needed */}
-                </TableBody>
-              </Table>
+              <div className="space-y-2">
+                {balanceHistory.map((entry) => (
+                  <div key={entry.id} className="flex items-center justify-between p-2 rounded-lg bg-default-100">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-1.5 rounded-full ${entry.type === 'increase' ? 'bg-success-100' : 'bg-danger-100'}`}>
+                        {entry.type === 'increase' ? (
+                          <ArrowUpIcon className="w-4 h-4 text-success-500" />
+                        ) : (
+                          <ArrowDownIcon className="w-4 h-4 text-danger-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{entry.reason}</p>
+                        <p className="text-xs text-default-400">
+                          {new Date(entry.date).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`font-bold text-sm ${entry.type === 'increase' ? 'text-success-500' : 'text-danger-500'}`}>
+                      {entry.type === 'increase' ? '+' : '-'} {Math.abs(entry.amount).toLocaleString()} FCFA
+                    </div>
+                  </div>
+                ))}
+              </div>
             </CardBody>
           </Card>
         </div>
+
+        <Card className="p-4">
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Recent Jobs</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody>
+            <Table aria-label="Recent jobs" removeWrapper>
+              <TableHeader>
+                <TableColumn>DATE</TableColumn>
+                <TableColumn>SERVICE</TableColumn>
+                <TableColumn>LOCATION</TableColumn>
+                <TableColumn>PRICE</TableColumn>
+                <TableColumn>STATUS</TableColumn>
+              </TableHeader>
+              <TableBody>
+                {/* Keep the existing static data for now */}
+                <TableRow>
+                  <TableCell>2023-06-01</TableCell>
+                  <TableCell>Cleaning</TableCell>
+                  <TableCell>New York</TableCell>
+                  <TableCell>{formatCurrency(150)}</TableCell>
+                  <TableCell>
+                    <Chip color="success" size="sm">Completed</Chip>
+                  </TableCell>
+                </TableRow>
+                {/* Add more rows as needed */}
+              </TableBody>
+            </Table>
+          </CardBody>
+        </Card>
 
         <div className="flex justify-between items-center">
           <span className="text-sm text-gray-500">
