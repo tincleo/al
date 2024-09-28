@@ -35,6 +35,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
 import { WhatsAppIcon } from "../components/WhatsAppIcon";
+import { EyeIcon } from "../components/EyeIcon";
 // Remove or comment out the PhoneIcon import
 // import { PhoneIcon } from "../components/PhoneIcon";
 
@@ -105,6 +106,10 @@ export default function TeamPage() {
     generated: 0,
   });
   const [newMemberErrors, setNewMemberErrors] = useState<Partial<Record<keyof TeamMember, string>>>({});
+  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
+  const [balanceChange, setBalanceChange] = useState("");
+  const [balanceError, setBalanceError] = useState("");
 
   const hasSearchFilter = Boolean(filterValue);
 
@@ -190,14 +195,26 @@ export default function TeamPage() {
         });
       case "actions":
         return (
-          <Button 
-            size="sm" 
-            variant="flat" 
-            color="primary"
-            onPress={() => router.push(`/team/${member.id}`)}
-          >
-            View
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              size="sm" 
+              variant="flat" 
+              color="primary"
+              onPress={() => router.push(`/team/${member.id}`)}
+              isIconOnly
+            >
+              <EyeIcon size={16} />
+            </Button>
+            <Button
+              size="sm"
+              variant="flat"
+              color="success"
+              isIconOnly
+              onPress={() => handleUpdateBalance(member)}
+            >
+              <PlusIcon size={16} />
+            </Button>
+          </div>
         );
       default:
         return cellValue;
@@ -430,6 +447,44 @@ export default function TeamPage() {
     }
   };
 
+  const handleUpdateBalance = (member: TeamMember) => {
+    setSelectedMember(member);
+    setBalanceChange("");
+    setBalanceError("");
+    setIsBalanceModalOpen(true);
+  };
+
+  const handleConfirmBalanceUpdate = async () => {
+    if (!selectedMember) return;
+
+    const changeAmount = parseFloat(balanceChange);
+    if (isNaN(changeAmount)) {
+      setBalanceError("Please enter a valid number");
+      return;
+    }
+
+    const newBalance = Math.round(selectedMember.current_balance + changeAmount);
+
+    const { error } = await supabase
+      .from('team')
+      .update({ current_balance: newBalance })
+      .eq('id', selectedMember.id);
+
+    if (error) {
+      console.error('Error updating balance:', error);
+      toast.error('Failed to update balance. Please try again.');
+    } else {
+      setTeamMembers(teamMembers.map(member => 
+        member.id === selectedMember.id 
+          ? { ...member, current_balance: newBalance } 
+          : member
+      ));
+      setIsBalanceModalOpen(false);
+      setBalanceError("");
+      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(changeAmount).toLocaleString()} FCFA successfully!`);
+    }
+  };
+
   return (
     <section className="flex flex-col gap-4">
       <Toaster position="top-center" reverseOrder={false} />
@@ -558,6 +613,49 @@ export default function TeamPage() {
             </Button>
             <Button color="primary" onPress={handleSaveNewMember}>
               Add Member
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal 
+        isOpen={isBalanceModalOpen} 
+        onClose={() => {
+          setIsBalanceModalOpen(false);
+          setBalanceError("");
+        }}
+        isDismissable={false}
+      >
+        <ModalContent>
+          <ModalHeader>Update Balance for {selectedMember?.name}</ModalHeader>
+          <ModalBody>
+            <Input
+              type="number"
+              label="Change balance by:"
+              value={balanceChange}
+              onChange={(e) => {
+                setBalanceChange(e.target.value);
+                setBalanceError("");
+              }}
+              startContent={
+                <div className="pointer-events-none flex items-center">
+                  <span className="text-default-400 text-small">FCFA</span>
+                </div>
+              }
+              description="Enter a positive value to increase or a negative value to decrease the balance. Negative final balance is allowed."
+              isInvalid={!!balanceError}
+              errorMessage={balanceError}
+            />
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" variant="light" onPress={() => {
+              setIsBalanceModalOpen(false);
+              setBalanceError("");
+            }}>
+              Cancel
+            </Button>
+            <Button color="primary" onPress={handleConfirmBalanceUpdate}>
+              Confirm
             </Button>
           </ModalFooter>
         </ModalContent>
