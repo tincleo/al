@@ -23,7 +23,9 @@ import {
   ModalContent,
   ModalHeader,
   ModalBody,
-  ModalFooter
+  ModalFooter,
+  Select,
+  SelectItem
 } from "@nextui-org/react";
 import { PlusIcon } from "../components/PlusIcon";
 import { VerticalDotsIcon } from "../components/VerticalDotsIcon";
@@ -110,6 +112,7 @@ export default function TeamPage() {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [balanceChange, setBalanceChange] = useState("");
   const [balanceError, setBalanceError] = useState("");
+  const [balanceReason, setBalanceReason] = useState("");
 
   const hasSearchFilter = Boolean(filterValue);
 
@@ -451,6 +454,7 @@ export default function TeamPage() {
     setSelectedMember(member);
     setBalanceChange("");
     setBalanceError("");
+    setBalanceReason("");
     setIsBalanceModalOpen(true);
   };
 
@@ -463,16 +467,37 @@ export default function TeamPage() {
       return;
     }
 
+    if (!balanceReason) {
+      setBalanceError("Please select a reason");
+      return;
+    }
+
     const newBalance = Math.round(selectedMember.current_balance + changeAmount);
 
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from('team')
       .update({ current_balance: newBalance })
       .eq('id', selectedMember.id);
 
-    if (error) {
-      console.error('Error updating balance:', error);
+    if (updateError) {
+      console.error('Error updating balance:', updateError);
       toast.error('Failed to update balance. Please try again.');
+      return;
+    }
+
+    const { error: historyError } = await supabase
+      .from('balance_history')
+      .insert({
+        team_member_id: selectedMember.id,
+        amount: changeAmount,
+        type: changeAmount > 0 ? 'increase' : 'decrease',
+        reason: balanceReason,
+        // Remove the updated_by field
+      });
+
+    if (historyError) {
+      console.error('Error recording balance history:', historyError);
+      toast.error('Failed to record balance history. Please try again.');
     } else {
       setTeamMembers(teamMembers.map(member => 
         member.id === selectedMember.id 
@@ -481,6 +506,7 @@ export default function TeamPage() {
       ));
       setIsBalanceModalOpen(false);
       setBalanceError("");
+      setBalanceReason("");
       toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(changeAmount).toLocaleString()} FCFA successfully!`);
     }
   };
@@ -623,6 +649,7 @@ export default function TeamPage() {
         onClose={() => {
           setIsBalanceModalOpen(false);
           setBalanceError("");
+          setBalanceReason("");
         }}
         isDismissable={false}
       >
@@ -646,11 +673,24 @@ export default function TeamPage() {
               isInvalid={!!balanceError}
               errorMessage={balanceError}
             />
+            <Select
+              label="Reason"
+              placeholder="Select a reason"
+              value={balanceReason}
+              onChange={(e) => setBalanceReason(e.target.value)}
+            >
+              <SelectItem key="salary" value="Salary payment">Salary payment</SelectItem>
+              <SelectItem key="bonus" value="Bonus">Bonus</SelectItem>
+              <SelectItem key="advance" value="Advance payment">Advance payment</SelectItem>
+              <SelectItem key="deduction" value="Deduction">Deduction</SelectItem>
+              <SelectItem key="other" value="Other">Other</SelectItem>
+            </Select>
           </ModalBody>
           <ModalFooter>
             <Button color="danger" variant="light" onPress={() => {
               setIsBalanceModalOpen(false);
               setBalanceError("");
+              setBalanceReason("");
             }}>
               Cancel
             </Button>

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination } from "@nextui-org/react";
+import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination, Select, SelectItem } from "@nextui-org/react";
 import { title } from "../../components/primitives";
 import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
@@ -60,9 +60,17 @@ export default function TeamMemberDetails() {
   const [isClearBalanceModalOpen, setIsClearBalanceModalOpen] = useState(false);
   const [balanceHistoryPage, setBalanceHistoryPage] = useState(1);
   const balanceHistoryPerPage = 6;
+  const [balanceReason, setBalanceReason] = useState("");
+  const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
 
   useEffect(() => {
     fetchMemberDetails();
+  }, [memberId]);
+
+  useEffect(() => {
+    if (memberId) {
+      fetchBalanceHistory();
+    }
   }, [memberId]);
 
   const fetchMemberDetails = async () => {
@@ -81,6 +89,20 @@ export default function TeamMemberDetails() {
       };
       setMember(memberWithAvatarUrl);
       setEditedMember(memberWithAvatarUrl);
+    }
+  };
+
+  const fetchBalanceHistory = async () => {
+    const { data, error } = await supabase
+      .from('balance_history')
+      .select('*')
+      .eq('team_member_id', memberId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching balance history:', error);
+    } else {
+      setBalanceHistory(data);
     }
   };
 
@@ -110,7 +132,7 @@ export default function TeamMemberDetails() {
     }
   }, [member]);
 
-  const handleConfirmCompletion = async () => {
+  const handleConfirmBalanceUpdate = async () => {
     if (!member) return;
 
     const changeAmount = parseFloat(balanceChange);
@@ -119,21 +141,44 @@ export default function TeamMemberDetails() {
       return;
     }
 
+    if (!balanceReason) {
+      setBalanceError("Please select a reason");
+      return;
+    }
+
     const newBalance = Math.round(member.current_balance + changeAmount);
 
-    const { error } = await supabase
+    const { error: updateError } = await supabase
       .from('team')
       .update({ current_balance: newBalance })
       .eq('id', memberId);
 
-    if (error) {
-      console.error('Error updating balance:', error);
+    if (updateError) {
+      console.error('Error updating balance:', updateError);
       toast.error('Failed to update balance. Please try again.');
+      return;
+    }
+
+    const { error: historyError } = await supabase
+      .from('balance_history')
+      .insert({
+        team_member_id: memberId,
+        amount: changeAmount,
+        type: changeAmount > 0 ? 'increase' : 'decrease',
+        reason: balanceReason,
+        // Remove the updated_by field
+      });
+
+    if (historyError) {
+      console.error('Error recording balance history:', historyError);
+      toast.error('Failed to record balance history. Please try again.');
     } else {
       setMember({ ...member, current_balance: newBalance });
       setIsBalanceModalOpen(false);
       setBalanceError("");
-      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${formatCurrency(Math.abs(changeAmount))} successfully!`);
+      setBalanceReason("");
+      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(changeAmount).toLocaleString()} FCFA successfully!`);
+      fetchBalanceHistory(); // Refresh balance history
     }
   };
 
@@ -337,26 +382,6 @@ export default function TeamMemberDetails() {
       toast.success('Balance cleared successfully!');
     }
   };
-
-  // Mock data for balance history (we'll replace this with real data later)
-  const balanceHistory = [
-    { id: 1, amount: 5000, type: 'increase', date: '2023-06-15T10:30:00Z', reason: 'Salary payment', updatedBy: 'John Doe' },
-    { id: 2, amount: -2000, type: 'decrease', date: '2023-06-20T14:45:00Z', reason: 'Advance payment', updatedBy: 'Jane Smith' },
-    { id: 3, amount: 3000, type: 'increase', date: '2023-06-25T09:15:00Z', reason: 'Bonus', updatedBy: 'John Doe' },
-    { id: 4, amount: -1000, type: 'decrease', date: '2023-06-30T16:00:00Z', reason: 'Equipment cost', updatedBy: 'Jane Smith' },
-    // Add more mock data to test pagination
-    { id: 5, amount: 2000, type: 'increase', date: '2023-07-05T11:30:00Z', reason: 'Performance bonus', updatedBy: 'John Doe' },
-    { id: 6, amount: -500, type: 'decrease', date: '2023-07-10T13:45:00Z', reason: 'Uniform deduction', updatedBy: 'Jane Smith' },
-    { id: 7, amount: 4000, type: 'increase', date: '2023-07-15T10:00:00Z', reason: 'Overtime payment', updatedBy: 'John Doe' },
-    { id: 8, amount: -1500, type: 'decrease', date: '2023-07-20T15:30:00Z', reason: 'Advance payment', updatedBy: 'Jane Smith' },
-  ];
-
-  const paginatedBalanceHistory = balanceHistory.slice(
-    (balanceHistoryPage - 1) * balanceHistoryPerPage,
-    balanceHistoryPage * balanceHistoryPerPage
-  );
-
-  const balanceHistoryPages = Math.ceil(balanceHistory.length / balanceHistoryPerPage);
 
   if (!member) return <div>Loading...</div>;
 
@@ -595,7 +620,7 @@ export default function TeamMemberDetails() {
             <Divider />
             <CardBody>
               <div className="space-y-2">
-                {paginatedBalanceHistory.map((entry) => (
+                {balanceHistory.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between p-2 rounded-lg bg-default-100">
                     <div className="flex items-center space-x-3">
                       <div className={`p-1.5 rounded-full ${entry.type === 'increase' ? 'bg-success-100' : 'bg-danger-100'}`}>
@@ -608,7 +633,7 @@ export default function TeamMemberDetails() {
                       <div>
                         <p className="font-semibold text-sm">{entry.reason}</p>
                         <p className="text-xs text-default-400">
-                          {new Date(entry.date).toLocaleString()} by {entry.updatedBy}
+                          {new Date(entry.created_at).toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -620,7 +645,7 @@ export default function TeamMemberDetails() {
               </div>
               <div className="flex justify-center mt-4">
                 <Pagination
-                  total={balanceHistoryPages}
+                  total={Math.ceil(balanceHistory.length / balanceHistoryPerPage)}
                   page={balanceHistoryPage}
                   onChange={setBalanceHistoryPage}
                 />
@@ -780,11 +805,12 @@ export default function TeamMemberDetails() {
           onClose={() => {
             setIsBalanceModalOpen(false);
             setBalanceError("");
+            setBalanceReason("");
           }}
           isDismissable={false}
         >
           <ModalContent>
-            <ModalHeader>Update Balance</ModalHeader>
+            <ModalHeader>Update Balance for {member.name}</ModalHeader>
             <ModalBody>
               <Input
                 type="number"
@@ -803,15 +829,28 @@ export default function TeamMemberDetails() {
                 isInvalid={!!balanceError}
                 errorMessage={balanceError}
               />
+              <Select
+                label="Reason"
+                placeholder="Select a reason"
+                value={balanceReason}
+                onChange={(e) => setBalanceReason(e.target.value)}
+              >
+                <SelectItem key="salary" value="Salary payment">Salary payment</SelectItem>
+                <SelectItem key="bonus" value="Bonus">Bonus</SelectItem>
+                <SelectItem key="advance" value="Advance payment">Advance payment</SelectItem>
+                <SelectItem key="deduction" value="Deduction">Deduction</SelectItem>
+                <SelectItem key="other" value="Other">Other</SelectItem>
+              </Select>
             </ModalBody>
             <ModalFooter>
               <Button color="danger" variant="light" onPress={() => {
                 setIsBalanceModalOpen(false);
                 setBalanceError("");
+                setBalanceReason("");
               }}>
                 Cancel
               </Button>
-              <Button color="primary" onPress={handleConfirmCompletion}>
+              <Button color="primary" onPress={handleConfirmBalanceUpdate}>
                 Confirm
               </Button>
             </ModalFooter>
