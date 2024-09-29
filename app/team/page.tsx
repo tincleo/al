@@ -523,7 +523,7 @@ export default function TeamPage() {
         bottomContent={bottomContent}
         bottomContentPlacement="outside"
         classNames={{
-          wrapper: "max-h-[382px]",
+          wrapper: "max-h-[calc(100vh-200px)]", // Adjust 200px based on your layout
         }}
         sortDescriptor={sortDescriptor}
         topContent={topContent}
