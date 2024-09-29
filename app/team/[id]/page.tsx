@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination, Select, SelectItem } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, BanknotesIcon, BackspaceIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
@@ -657,8 +657,16 @@ export default function TeamMemberDetails() {
                 {balanceHistory.map((entry) => (
                   <div key={entry.id} className="flex items-center justify-between p-2 rounded-lg bg-default-100">
                     <div className="flex items-center space-x-3">
-                      <div className={`p-1.5 rounded-full ${entry.type === 'increase' ? 'bg-success-100' : 'bg-danger-100'}`}>
-                        {entry.type === 'increase' ? (
+                      <div className={`p-1.5 rounded-full ${
+                        entry.reason === 'Balance cleared' 
+                          ? 'bg-yellow-100' 
+                          : entry.type === 'increase' 
+                            ? 'bg-success-100' 
+                            : 'bg-danger-100'
+                      }`}>
+                        {entry.reason === 'Balance cleared' ? (
+                          <ArrowPathIcon className="w-4 h-4 text-yellow-500" />
+                        ) : entry.type === 'increase' ? (
                           <ArrowUpIcon className="w-4 h-4 text-success-500" />
                         ) : (
                           <ArrowDownIcon className="w-4 h-4 text-danger-500" />
@@ -672,8 +680,14 @@ export default function TeamMemberDetails() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`font-bold text-sm ${entry.type === 'increase' ? 'text-success-500' : 'text-danger-500'}`}>
-                        {entry.type === 'increase' ? '+' : '-'} {Math.abs(entry.amount).toLocaleString()} FCFA
+                      <div className={`font-bold text-sm ${
+                        entry.reason === 'Balance cleared' 
+                          ? 'text-yellow-500' 
+                          : entry.type === 'increase' 
+                            ? 'text-success-500' 
+                            : 'text-danger-500'
+                      }`}>
+                        {entry.reason === 'Balance cleared' ? '' : entry.type === 'increase' ? '+' : '-'} {Math.abs(entry.amount).toLocaleString()} FCFA
                       </div>
                       <p className="text-xs text-default-400 flex items-center justify-end space-x-2">
                         <span className="flex items-center">
