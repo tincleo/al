@@ -40,6 +40,8 @@ import { WhatsAppIcon } from "../components/WhatsAppIcon";
 import { EyeIcon } from "../components/EyeIcon";
 // Remove or comment out the PhoneIcon import
 // import { PhoneIcon } from "../components/PhoneIcon";
+import { UpdateBalanceModal } from "../components/UpdateBalanceModal";
+import { BanknotesIcon } from '@heroicons/react/24/outline';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   active: "success",
@@ -215,7 +217,7 @@ export default function TeamPage() {
               isIconOnly
               onPress={() => handleUpdateBalance(member)}
             >
-              <PlusIcon size={16} />
+              <BanknotesIcon className="w-4 h-4" />
             </Button>
           </div>
         );
@@ -454,7 +456,7 @@ export default function TeamPage() {
     setSelectedMember(member);
     setBalanceChange("");
     setBalanceError("");
-    setBalanceReason("");
+    setBalanceReason("Daily salary");  // Set default reason
     setIsBalanceModalOpen(true);
   };
 
@@ -462,8 +464,8 @@ export default function TeamPage() {
     if (!selectedMember) return;
 
     const changeAmount = parseFloat(balanceChange);
-    if (isNaN(changeAmount) || changeAmount === 0) {
-      setBalanceError("Please enter a valid non-zero number");
+    if (isNaN(changeAmount) || changeAmount <= 0) {
+      setBalanceError("Please enter a valid positive number");
       return;
     }
 
@@ -472,10 +474,7 @@ export default function TeamPage() {
       return;
     }
 
-    let finalChangeAmount = changeAmount;
-    if (balanceReason === "Deduction") {
-      finalChangeAmount = -Math.abs(changeAmount);
-    }
+    let finalChangeAmount = balanceReason === "Deduction" ? -changeAmount : changeAmount;
 
     const previousBalance = selectedMember.current_balance;
     const newBalance = Math.round(previousBalance + finalChangeAmount);
@@ -497,7 +496,7 @@ export default function TeamPage() {
         team_member_id: selectedMember.id,
         amount: finalChangeAmount,
         type: finalChangeAmount > 0 ? 'increase' : 'decrease',
-        reason: balanceReason,
+        reason: balanceReason, // Remove the conditional here
         previous_balance: previousBalance,
         new_balance: newBalance
       });
@@ -693,69 +692,23 @@ export default function TeamPage() {
         </ModalContent>
       </Modal>
 
-      <Modal 
-        isOpen={isBalanceModalOpen} 
+      <UpdateBalanceModal
+        isOpen={isBalanceModalOpen}
         onClose={() => {
           setIsBalanceModalOpen(false);
           setBalanceError("");
           setBalanceReason("");
         }}
-        isDismissable={false}
-      >
-        <ModalContent>
-          <ModalHeader>Update Balance for {selectedMember?.name}</ModalHeader>
-          <ModalBody>
-            <Input
-              type="number"
-              label="Change balance by:"
-              value={balanceChange}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value !== '0') {
-                  setBalanceChange(value);
-                  setBalanceError("");
-                }
-              }}
-              startContent={
-                <div className="pointer-events-none flex items-center">
-                  <span className="text-default-400 text-small">FCFA</span>
-                </div>
-              }
-              description="Enter a non-zero value to increase or decrease the balance."
-              isInvalid={!!balanceError}
-              errorMessage={balanceError}
-            />
-            <Select
-              label="Reason"
-              placeholder="Select a reason"
-              value={balanceReason}
-              onChange={(e) => setBalanceReason(e.target.value)}
-              isRequired
-            >
-              <SelectItem key="daily_salary" value="Daily salary">Daily salary</SelectItem>
-              <SelectItem key="bonus" value="Bonus">Bonus</SelectItem>
-              <SelectItem key="deduction" value="Deduction">Deduction</SelectItem>
-            </Select>
-          </ModalBody>
-          <ModalFooter className="flex justify-between">
-            <Button color="warning" variant="flat" onPress={handleClearBalance}>
-              Clear Balance
-            </Button>
-            <div>
-              <Button color="danger" variant="light" onPress={() => {
-                setIsBalanceModalOpen(false);
-                setBalanceError("");
-                setBalanceReason("");
-              }}>
-                Cancel
-              </Button>
-              <Button color="primary" onPress={handleConfirmBalanceUpdate}>
-                Confirm
-              </Button>
-            </div>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+        memberName={selectedMember?.name || ''}
+        balanceChange={balanceChange}
+        setBalanceChange={setBalanceChange}
+        balanceError={balanceError}
+        balanceReason={balanceReason}
+        setBalanceReason={setBalanceReason}
+        handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
+        handleClearBalance={handleClearBalance}
+        currentBalance={selectedMember?.current_balance || 0}
+      />
     </section>
   );
 }

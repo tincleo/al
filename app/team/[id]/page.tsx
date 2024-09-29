@@ -4,12 +4,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination, Select, SelectItem } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, BanknotesIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
 import { differenceInYears, differenceInMonths, differenceInWeeks, differenceInDays } from 'date-fns';
 import { TopMenu } from '../../components/top-menu';
+import { UpdateBalanceModal } from "../../components/UpdateBalanceModal";
 
 type TeamMember = {
   id: string;
@@ -153,8 +154,8 @@ export default function TeamMemberDetails() {
     if (!member) return;
 
     const changeAmount = parseFloat(balanceChange);
-    if (isNaN(changeAmount)) {
-      setBalanceError("Please enter a valid number");
+    if (isNaN(changeAmount) || changeAmount <= 0) {
+      setBalanceError("Please enter a valid positive number");
       return;
     }
 
@@ -163,8 +164,10 @@ export default function TeamMemberDetails() {
       return;
     }
 
+    let finalChangeAmount = balanceReason === "Deduction" ? -changeAmount : changeAmount;
+
     const previousBalance = member.current_balance;
-    const newBalance = Math.round(previousBalance + changeAmount);
+    const newBalance = Math.round(previousBalance + finalChangeAmount);
 
     const { error: updateError } = await supabase
       .from('team')
@@ -181,9 +184,9 @@ export default function TeamMemberDetails() {
       .from('balance_history')
       .insert({
         team_member_id: memberId,
-        amount: changeAmount,
-        type: changeAmount > 0 ? 'increase' : 'decrease',
-        reason: capitalizeFirstLetter(balanceReason),
+        amount: finalChangeAmount,
+        type: finalChangeAmount > 0 ? 'increase' : 'decrease',
+        reason: capitalizeFirstLetter(balanceReason), // Remove the conditional here
         previous_balance: previousBalance,
         new_balance: newBalance
       });
@@ -196,7 +199,7 @@ export default function TeamMemberDetails() {
       setIsBalanceModalOpen(false);
       setBalanceError("");
       setBalanceReason("");
-      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(changeAmount).toLocaleString()} FCFA successfully!`);
+      toast.success(`Balance ${finalChangeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`);
       fetchBalanceHistory(); // Refresh balance history
     }
   };
@@ -384,21 +387,44 @@ export default function TeamMemberDetails() {
   };
 
   const handleClearBalance = async () => {
-    if (!member) return;
+    if (!member || member.current_balance === 0) {
+      setIsBalanceModalOpen(false);
+      return;
+    }
 
-    const newTotalEarned = member.total_earned + member.current_balance;
-    const { error } = await supabase
+    const previousBalance = member.current_balance;
+    const changeAmount = -previousBalance;
+
+    const { error: updateError } = await supabase
       .from('team')
-      .update({ current_balance: 0, total_earned: newTotalEarned })
+      .update({ current_balance: 0, total_earned: member.total_earned + previousBalance })
       .eq('id', memberId);
 
-    if (error) {
-      console.error('Error clearing balance:', error);
+    if (updateError) {
+      console.error('Error clearing balance:', updateError);
       toast.error('Failed to clear balance. Please try again.');
+      return;
+    }
+
+    const { error: historyError } = await supabase
+      .from('balance_history')
+      .insert({
+        team_member_id: memberId,
+        amount: changeAmount,
+        type: 'decrease',
+        reason: 'Balance cleared',
+        previous_balance: previousBalance,
+        new_balance: 0
+      });
+
+    if (historyError) {
+      console.error('Error recording balance history:', historyError);
+      toast.error('Failed to record balance history. Please try again.');
     } else {
-      setMember({ ...member, current_balance: 0, total_earned: newTotalEarned });
-      setIsClearBalanceModalOpen(false);
-      toast.success('Balance cleared successfully!');
+      setMember({ ...member, current_balance: 0, total_earned: member.total_earned + previousBalance });
+      setIsBalanceModalOpen(false);
+      toast.success(`Balance cleared successfully. ${previousBalance.toLocaleString()} FCFA paid out.`);
+      fetchBalanceHistory(); // Refresh balance history
     }
   };
 
@@ -421,25 +447,14 @@ export default function TeamMemberDetails() {
               </div>
               <div className="flex space-x-2">
                 <Button 
-                  isIconOnly 
                   size="sm" 
                   variant="flat" 
                   onPress={() => setIsBalanceModalOpen(true)}
                   className="bg-default-100 hover:bg-blue-500 hover:text-white transition-colors"
+                  isIconOnly
                 >
                   <PencilIcon className="w-4 h-4" />
                 </Button>
-                {member.current_balance > 0 && (
-                  <Button 
-                    isIconOnly 
-                    size="sm" 
-                    variant="flat" 
-                    onPress={() => setIsClearBalanceModalOpen(true)}
-                    className="bg-default-100 hover:bg-red-500 hover:text-white transition-colors"
-                  >
-                    <TrashIcon className="w-4 h-4" />
-                  </Button>
-                )}
               </div>
             </CardBody>
           </Card>
@@ -832,62 +847,23 @@ export default function TeamMemberDetails() {
           </ModalContent>
         </Modal>
 
-        <Modal 
-          isOpen={isBalanceModalOpen} 
+        <UpdateBalanceModal
+          isOpen={isBalanceModalOpen}
           onClose={() => {
             setIsBalanceModalOpen(false);
             setBalanceError("");
             setBalanceReason("");
           }}
-          isDismissable={false}
-        >
-          <ModalContent>
-            <ModalHeader>Update Balance for {member.name}</ModalHeader>
-            <ModalBody>
-              <Input
-                type="number"
-                label="Change balance by:"
-                value={balanceChange}
-                onChange={(e) => {
-                  setBalanceChange(e.target.value);
-                  setBalanceError("");
-                }}
-                startContent={
-                  <div className="pointer-events-none flex items-center">
-                    <span className="text-default-400 text-small">FCFA</span>
-                  </div>
-                }
-                description="Enter a positive value to increase or a negative value to decrease the balance. Negative final balance is allowed."
-                isInvalid={!!balanceError}
-                errorMessage={balanceError}
-              />
-              <Select
-                label="Reason"
-                placeholder="Select a reason"
-                value={balanceReason}
-                onChange={(e) => setBalanceReason(e.target.value)}
-              >
-                <SelectItem key="salary" value="Salary payment">Salary payment</SelectItem>
-                <SelectItem key="bonus" value="Bonus">Bonus</SelectItem>
-                <SelectItem key="advance" value="Advance payment">Advance payment</SelectItem>
-                <SelectItem key="deduction" value="Deduction">Deduction</SelectItem>
-                <SelectItem key="other" value="Other">Other</SelectItem>
-              </Select>
-            </ModalBody>
-            <ModalFooter>
-              <Button color="danger" variant="light" onPress={() => {
-                setIsBalanceModalOpen(false);
-                setBalanceError("");
-                setBalanceReason("");
-              }}>
-                Cancel
-              </Button>
-              <Button color="primary" onPress={handleConfirmBalanceUpdate}>
-                Confirm
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+          memberName={member?.name || ''}
+          balanceChange={balanceChange}
+          setBalanceChange={setBalanceChange}
+          balanceError={balanceError}
+          balanceReason={balanceReason}
+          setBalanceReason={setBalanceReason}
+          handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
+          handleClearBalance={handleClearBalance}
+          currentBalance={member?.current_balance || 0}
+        />
 
         <Modal 
           isOpen={isClearBalanceModalOpen} 
