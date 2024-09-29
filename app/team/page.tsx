@@ -462,8 +462,8 @@ export default function TeamPage() {
     if (!selectedMember) return;
 
     const changeAmount = parseFloat(balanceChange);
-    if (isNaN(changeAmount)) {
-      setBalanceError("Please enter a valid number");
+    if (isNaN(changeAmount) || changeAmount === 0) {
+      setBalanceError("Please enter a valid non-zero number");
       return;
     }
 
@@ -472,8 +472,13 @@ export default function TeamPage() {
       return;
     }
 
+    let finalChangeAmount = changeAmount;
+    if (balanceReason === "Deduction") {
+      finalChangeAmount = -Math.abs(changeAmount);
+    }
+
     const previousBalance = selectedMember.current_balance;
-    const newBalance = Math.round(previousBalance + changeAmount);
+    const newBalance = Math.round(previousBalance + finalChangeAmount);
 
     const { error: updateError } = await supabase
       .from('team')
@@ -490,8 +495,8 @@ export default function TeamPage() {
       .from('balance_history')
       .insert({
         team_member_id: selectedMember.id,
-        amount: changeAmount,
-        type: changeAmount > 0 ? 'increase' : 'decrease',
+        amount: finalChangeAmount,
+        type: finalChangeAmount > 0 ? 'increase' : 'decrease',
         reason: balanceReason,
         previous_balance: previousBalance,
         new_balance: newBalance
@@ -509,7 +514,49 @@ export default function TeamPage() {
       setIsBalanceModalOpen(false);
       setBalanceError("");
       setBalanceReason("");
-      toast.success(`Balance ${changeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(changeAmount).toLocaleString()} FCFA successfully!`);
+      toast.success(`Balance ${finalChangeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`);
+    }
+  };
+
+  const handleClearBalance = async () => {
+    if (!selectedMember) return;
+
+    const previousBalance = selectedMember.current_balance;
+    const changeAmount = -previousBalance;
+
+    const { error: updateError } = await supabase
+      .from('team')
+      .update({ current_balance: 0 })
+      .eq('id', selectedMember.id);
+
+    if (updateError) {
+      console.error('Error clearing balance:', updateError);
+      toast.error('Failed to clear balance. Please try again.');
+      return;
+    }
+
+    const { error: historyError } = await supabase
+      .from('balance_history')
+      .insert({
+        team_member_id: selectedMember.id,
+        amount: changeAmount,
+        type: 'decrease',
+        reason: 'Balance cleared',
+        previous_balance: previousBalance,
+        new_balance: 0
+      });
+
+    if (historyError) {
+      console.error('Error recording balance history:', historyError);
+      toast.error('Failed to record balance history. Please try again.');
+    } else {
+      setTeamMembers(teamMembers.map(member => 
+        member.id === selectedMember.id 
+          ? { ...member, current_balance: 0 } 
+          : member
+      ));
+      setIsBalanceModalOpen(false);
+      toast.success(`Balance cleared successfully. ${previousBalance.toLocaleString()} FCFA paid out.`);
     }
   };
 
@@ -663,15 +710,18 @@ export default function TeamPage() {
               label="Change balance by:"
               value={balanceChange}
               onChange={(e) => {
-                setBalanceChange(e.target.value);
-                setBalanceError("");
+                const value = e.target.value;
+                if (value !== '0') {
+                  setBalanceChange(value);
+                  setBalanceError("");
+                }
               }}
               startContent={
                 <div className="pointer-events-none flex items-center">
                   <span className="text-default-400 text-small">FCFA</span>
                 </div>
               }
-              description="Enter a positive value to increase or a negative value to decrease the balance. Negative final balance is allowed."
+              description="Enter a non-zero value to increase or decrease the balance."
               isInvalid={!!balanceError}
               errorMessage={balanceError}
             />
@@ -680,25 +730,29 @@ export default function TeamPage() {
               placeholder="Select a reason"
               value={balanceReason}
               onChange={(e) => setBalanceReason(e.target.value)}
+              isRequired
             >
-              <SelectItem key="salary" value="Salary payment">Salary payment</SelectItem>
+              <SelectItem key="daily_salary" value="Daily salary">Daily salary</SelectItem>
               <SelectItem key="bonus" value="Bonus">Bonus</SelectItem>
-              <SelectItem key="advance" value="Advance payment">Advance payment</SelectItem>
               <SelectItem key="deduction" value="Deduction">Deduction</SelectItem>
-              <SelectItem key="other" value="Other">Other</SelectItem>
             </Select>
           </ModalBody>
-          <ModalFooter>
-            <Button color="danger" variant="light" onPress={() => {
-              setIsBalanceModalOpen(false);
-              setBalanceError("");
-              setBalanceReason("");
-            }}>
-              Cancel
+          <ModalFooter className="flex justify-between">
+            <Button color="warning" variant="flat" onPress={handleClearBalance}>
+              Clear Balance
             </Button>
-            <Button color="primary" onPress={handleConfirmBalanceUpdate}>
-              Confirm
-            </Button>
+            <div>
+              <Button color="danger" variant="light" onPress={() => {
+                setIsBalanceModalOpen(false);
+                setBalanceError("");
+                setBalanceReason("");
+              }}>
+                Cancel
+              </Button>
+              <Button color="primary" onPress={handleConfirmBalanceUpdate}>
+                Confirm
+              </Button>
+            </div>
           </ModalFooter>
         </ModalContent>
       </Modal>
