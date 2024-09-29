@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination, Select, SelectItem } from "@nextui-org/react";
 import { title } from "../../components/primitives";
-import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, BanknotesIcon, BackspaceIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, BanknotesIcon, BackspaceIcon, ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
@@ -77,9 +77,10 @@ export default function TeamMemberDetails() {
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const [isClearBalanceModalOpen, setIsClearBalanceModalOpen] = useState(false);
   const [balanceHistoryPage, setBalanceHistoryPage] = useState(1);
-  const balanceHistoryPerPage = 6;
+  const balanceHistoryPerPage = 5; // Show 5 items per page
   const [balanceReason, setBalanceReason] = useState("");
   const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
+  const [balanceNote, setBalanceNote] = useState("");
 
   useEffect(() => {
     fetchMemberDetails();
@@ -113,7 +114,7 @@ export default function TeamMemberDetails() {
   const fetchBalanceHistory = async () => {
     const { data, error } = await supabase
       .from('balance_history')
-      .select('id, amount, type, reason, previous_balance, new_balance, created_at')
+      .select('id, amount, type, reason, previous_balance, new_balance, created_at, notes')
       .eq('team_member_id', memberId)
       .order('created_at', { ascending: false });
 
@@ -186,9 +187,10 @@ export default function TeamMemberDetails() {
         team_member_id: memberId,
         amount: finalChangeAmount,
         type: finalChangeAmount > 0 ? 'increase' : 'decrease',
-        reason: capitalizeFirstLetter(balanceReason), // Remove the conditional here
+        reason: capitalizeFirstLetter(balanceReason),
         previous_balance: previousBalance,
-        new_balance: newBalance
+        new_balance: newBalance,
+        notes: balanceNote || null
       });
 
     if (historyError) {
@@ -199,6 +201,7 @@ export default function TeamMemberDetails() {
       setIsBalanceModalOpen(false);
       setBalanceError("");
       setBalanceReason("");
+      setBalanceNote("");
       toast.success(`Balance ${finalChangeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`);
       fetchBalanceHistory(); // Refresh balance history
     }
@@ -428,6 +431,106 @@ export default function TeamMemberDetails() {
     }
   };
 
+  const paginatedBalanceHistory = balanceHistory.slice(
+    (balanceHistoryPage - 1) * balanceHistoryPerPage,
+    balanceHistoryPage * balanceHistoryPerPage
+  );
+
+  const totalPages = Math.ceil(balanceHistory.length / balanceHistoryPerPage);
+
+  const renderPaginationButtons = () => {
+    const buttons = [];
+    const maxVisibleButtons = 7; // Changed from 5 to 7
+
+    if (totalPages <= maxVisibleButtons) {
+      for (let i = 1; i <= totalPages; i++) {
+        buttons.push(
+          <Button
+            key={i}
+            size="sm"
+            variant={balanceHistoryPage === i ? "solid" : "light"}
+            onPress={() => setBalanceHistoryPage(i)}
+          >
+            {i}
+          </Button>
+        );
+      }
+    } else {
+      buttons.push(
+        <Button
+          key="prev"
+          size="sm"
+          variant="light"
+          isDisabled={balanceHistoryPage === 1}
+          onPress={() => setBalanceHistoryPage(prev => Math.max(1, prev - 1))}
+        >
+          <ChevronLeftIcon className="w-4 h-4" />
+        </Button>
+      );
+
+      let startPage = Math.max(1, balanceHistoryPage - 3);
+      let endPage = Math.min(totalPages, startPage + 6);
+
+      if (endPage - startPage < 6) {
+        startPage = Math.max(1, endPage - 6);
+      }
+
+      if (startPage > 1) {
+        buttons.push(
+          <Button key={1} size="sm" variant="light" onPress={() => setBalanceHistoryPage(1)}>
+            1
+          </Button>
+        );
+        if (startPage > 2) {
+          buttons.push(<span key="ellipsis1">...</span>);
+        }
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        buttons.push(
+          <Button
+            key={i}
+            size="sm"
+            variant={balanceHistoryPage === i ? "solid" : "light"}
+            onPress={() => setBalanceHistoryPage(i)}
+          >
+            {i}
+          </Button>
+        );
+      }
+
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+          buttons.push(<span key="ellipsis2">...</span>);
+        }
+        buttons.push(
+          <Button
+            key={totalPages}
+            size="sm"
+            variant="light"
+            onPress={() => setBalanceHistoryPage(totalPages)}
+          >
+            {totalPages}
+          </Button>
+        );
+      }
+
+      buttons.push(
+        <Button
+          key="next"
+          size="sm"
+          variant="light"
+          isDisabled={balanceHistoryPage === totalPages}
+          onPress={() => setBalanceHistoryPage(prev => Math.min(totalPages, prev + 1))}
+        >
+          <ChevronRightIcon className="w-4 h-4" />
+        </Button>
+      );
+    }
+
+    return buttons;
+  };
+
   if (!member) return <div>Loading...</div>;
 
   return (
@@ -654,63 +757,68 @@ export default function TeamMemberDetails() {
             <Divider />
             <CardBody>
               <div className="space-y-2">
-                {balanceHistory.map((entry) => (
-                  <div key={entry.id} className="flex items-center justify-between p-2 rounded-lg bg-default-100">
-                    <div className="flex items-center space-x-3">
-                      <div className={`p-1.5 rounded-full ${
-                        entry.reason === 'Balance cleared' 
-                          ? 'bg-yellow-100' 
-                          : entry.type === 'increase' 
-                            ? 'bg-success-100' 
-                            : 'bg-danger-100'
-                      }`}>
-                        {entry.reason === 'Balance cleared' ? (
-                          <ArrowPathIcon className="w-4 h-4 text-yellow-500" />
-                        ) : entry.type === 'increase' ? (
-                          <ArrowUpIcon className="w-4 h-4 text-success-500" />
-                        ) : (
-                          <ArrowDownIcon className="w-4 h-4 text-danger-500" />
-                        )}
+                {paginatedBalanceHistory.map((entry) => (
+                  <div key={entry.id} className="flex flex-col p-2 rounded-lg bg-default-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className={`p-1.5 rounded-full ${
+                          entry.reason === 'Balance cleared' 
+                            ? 'bg-yellow-100' 
+                            : entry.type === 'increase' 
+                              ? 'bg-success-100' 
+                              : 'bg-danger-100'
+                        }`}>
+                          {entry.reason === 'Balance cleared' ? (
+                            <ArrowPathIcon className="w-4 h-4 text-yellow-500" />
+                          ) : entry.type === 'increase' ? (
+                            <ArrowUpIcon className="w-4 h-4 text-success-500" />
+                          ) : (
+                            <ArrowDownIcon className="w-4 h-4 text-danger-500" />
+                          )}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{capitalizeFirstLetter(entry.reason)}</p>
+                          <p className="text-xs text-default-400">
+                            {formatDate(entry.created_at)}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-semibold text-sm">{capitalizeFirstLetter(entry.reason)}</p>
-                        <p className="text-xs text-default-400">
-                          {formatDate(entry.created_at)}
+                      <div className="text-right">
+                        <div className={`font-bold text-sm ${
+                          entry.reason === 'Balance cleared' 
+                            ? 'text-yellow-500' 
+                            : entry.type === 'increase' 
+                              ? 'text-success-500' 
+                              : 'text-danger-500'
+                        }`}>
+                          {entry.reason === 'Balance cleared' ? '' : entry.type === 'increase' ? '+' : '-'} {Math.abs(entry.amount).toLocaleString()} FCFA
+                        </div>
+                        <p className="text-xs text-default-400 flex items-center justify-end space-x-2">
+                          <span className="flex items-center">
+                            <ArrowLeftIcon className="w-3 h-3 mr-1" />
+                            {entry.previous_balance?.toLocaleString() ?? 'N/A'} FCFA
+                          </span>
+                          <span>|</span>
+                          <span className="flex items-center">
+                            <ArrowRightIcon className="w-3 h-3 mr-1" />
+                            {entry.new_balance?.toLocaleString() ?? 'N/A'} FCFA
+                          </span>
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className={`font-bold text-sm ${
-                        entry.reason === 'Balance cleared' 
-                          ? 'text-yellow-500' 
-                          : entry.type === 'increase' 
-                            ? 'text-success-500' 
-                            : 'text-danger-500'
-                      }`}>
-                        {entry.reason === 'Balance cleared' ? '' : entry.type === 'increase' ? '+' : '-'} {Math.abs(entry.amount).toLocaleString()} FCFA
-                      </div>
-                      <p className="text-xs text-default-400 flex items-center justify-end space-x-2">
-                        <span className="flex items-center">
-                          <ArrowLeftIcon className="w-3 h-3 mr-1" />
-                          {entry.previous_balance?.toLocaleString() ?? 'N/A'} FCFA
-                        </span>
-                        <span>|</span>
-                        <span className="flex items-center">
-                          <ArrowRightIcon className="w-3 h-3 mr-1" />
-                          {entry.new_balance?.toLocaleString() ?? 'N/A'} FCFA
-                        </span>
+                    {entry.notes && (
+                      <p className="text-xs text-default-500 mt-2 w-full">
+                        Note: {entry.notes}
                       </p>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>
-              <div className="flex justify-center mt-4">
-                <Pagination
-                  total={Math.ceil(balanceHistory.length / balanceHistoryPerPage)}
-                  page={balanceHistoryPage}
-                  onChange={setBalanceHistoryPage}
-                />
-              </div>
+              {totalPages > 1 && (
+                <div className="flex justify-center mt-4 gap-2">
+                  {renderPaginationButtons()}
+                </div>
+              )}
             </CardBody>
           </Card>
         </div>
@@ -867,6 +975,7 @@ export default function TeamMemberDetails() {
             setIsBalanceModalOpen(false);
             setBalanceError("");
             setBalanceReason("");
+            setBalanceNote("");
           }}
           memberName={member?.name || ''}
           balanceChange={balanceChange}
@@ -874,6 +983,8 @@ export default function TeamMemberDetails() {
           balanceError={balanceError}
           balanceReason={balanceReason}
           setBalanceReason={setBalanceReason}
+          balanceNote={balanceNote}
+          setBalanceNote={setBalanceNote}
           handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
           handleClearBalance={handleClearBalance}
           currentBalance={member?.current_balance || 0}

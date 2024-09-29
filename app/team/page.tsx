@@ -115,6 +115,7 @@ export default function TeamPage() {
   const [balanceChange, setBalanceChange] = useState("");
   const [balanceError, setBalanceError] = useState("");
   const [balanceReason, setBalanceReason] = useState("");
+  const [balanceNote, setBalanceNote] = useState("");
 
   const hasSearchFilter = Boolean(filterValue);
 
@@ -454,7 +455,7 @@ export default function TeamPage() {
 
   const handleUpdateBalance = (member: TeamMember) => {
     setSelectedMember(member);
-    setBalanceChange("");
+    setBalanceChange(member.salary.toString()); // Prefill with the member's salary
     setBalanceError("");
     setBalanceReason("Daily salary");  // Set default reason
     setIsBalanceModalOpen(true);
@@ -496,9 +497,10 @@ export default function TeamPage() {
         team_member_id: selectedMember.id,
         amount: finalChangeAmount,
         type: finalChangeAmount > 0 ? 'increase' : 'decrease',
-        reason: balanceReason, // Remove the conditional here
+        reason: balanceReason,
         previous_balance: previousBalance,
-        new_balance: newBalance
+        new_balance: newBalance,
+        notes: balanceNote || null // Add this line
       });
 
     if (historyError) {
@@ -513,6 +515,7 @@ export default function TeamPage() {
       setIsBalanceModalOpen(false);
       setBalanceError("");
       setBalanceReason("");
+      setBalanceNote("");
       toast.success(`Balance ${finalChangeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`);
     }
   };
@@ -698,6 +701,7 @@ export default function TeamPage() {
           setIsBalanceModalOpen(false);
           setBalanceError("");
           setBalanceReason("");
+          setBalanceNote("");
         }}
         memberName={selectedMember?.name || ''}
         balanceChange={balanceChange}
@@ -705,6 +709,8 @@ export default function TeamPage() {
         balanceError={balanceError}
         balanceReason={balanceReason}
         setBalanceReason={setBalanceReason}
+        balanceNote={balanceNote}
+        setBalanceNote={setBalanceNote}
         handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
         handleClearBalance={handleClearBalance}
         currentBalance={selectedMember?.current_balance || 0}

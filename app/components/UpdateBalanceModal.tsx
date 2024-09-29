@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem } from "@nextui-org/react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem, Textarea } from "@nextui-org/react";
 import { TrashIcon } from '@heroicons/react/24/outline';
 
 interface UpdateBalanceModalProps {
@@ -11,8 +11,10 @@ interface UpdateBalanceModalProps {
   balanceError: string;
   balanceReason: string;
   setBalanceReason: (value: string) => void;
+  balanceNote: string;
+  setBalanceNote: (value: string) => void;
   handleConfirmBalanceUpdate: () => void;
-  handleClearBalance: () => Promise<void>; // Update this to be async
+  handleClearBalance: () => Promise<void>;
   currentBalance: number;
 }
 
@@ -25,6 +27,8 @@ export function UpdateBalanceModal({
   balanceError,
   balanceReason,
   setBalanceReason,
+  balanceNote,
+  setBalanceNote,
   handleConfirmBalanceUpdate,
   handleClearBalance,
   currentBalance
@@ -75,8 +79,15 @@ export function UpdateBalanceModal({
           >
             <SelectItem key="Daily salary" value="Daily salary">Daily salary (Increase)</SelectItem>
             <SelectItem key="Bonus" value="Bonus">Bonus (Increase)</SelectItem>
+            <SelectItem key="Transport" value="Transport">Transport (Increase)</SelectItem>
             <SelectItem key="Deduction" value="Deduction">Deduction (Decrease)</SelectItem>
           </Select>
+          <Textarea
+            label="Note (optional)"
+            placeholder="Enter any additional information"
+            value={balanceNote}
+            onChange={(e) => setBalanceNote(e.target.value)}
+          />
         </ModalBody>
         <ModalFooter className="flex justify-between">
           <Button 
