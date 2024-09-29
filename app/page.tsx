@@ -1,60 +1,159 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, CardBody, CardHeader, Progress, Pagination, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, AvatarGroup, Avatar } from "@nextui-org/react";
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  Pagination,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  AvatarGroup,
+  Avatar,
+} from "@nextui-org/react";
 import { Tabs, Tab } from "@nextui-org/react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+import {
+  CalendarIcon,
+  CurrencyDollarIcon,
+  BriefcaseIcon,
+  ExclamationCircleIcon,
+  UserGroupIcon,
+} from "@heroicons/react/24/outline";
+
 import { title, subtitle } from "../components/primitives";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { CalendarIcon, CurrencyDollarIcon, BriefcaseIcon, ExclamationCircleIcon, UserGroupIcon, ArrowTrendingUpIcon, ClockIcon } from "@heroicons/react/24/outline";
+
 import DateRangePicker from "./components/DateRangePicker";
-import { supabase } from "@/lib/supabaseClient";
 
 // Mock data (replace with real data later)
 const revenueData = [
-  { name: 'Jan', income: 4000000, expenses: 3000000 },
-  { name: 'Feb', income: 3500000, expenses: 2800000 },
-  { name: 'Mar', income: 5000000, expenses: 3500000 },
-  { name: 'Apr', income: 4500000, expenses: 3200000 },
-  { name: 'May', income: 6000000, expenses: 4000000 },
-  { name: 'Jun', income: 5500000, expenses: 3800000 },
+  { name: "Jan", income: 4000000, expenses: 3000000 },
+  { name: "Feb", income: 3500000, expenses: 2800000 },
+  { name: "Mar", income: 5000000, expenses: 3500000 },
+  { name: "Apr", income: 4500000, expenses: 3200000 },
+  { name: "May", income: 6000000, expenses: 4000000 },
+  { name: "Jun", income: 5500000, expenses: 3800000 },
 ];
 
 const bookingStatusData = [
-  { name: 'Completed', value: 400 },
-  { name: 'Scheduled', value: 300 },
-  { name: 'Cancelled', value: 50 },
+  { name: "Completed", value: 400 },
+  { name: "Scheduled", value: 300 },
+  { name: "Cancelled", value: 50 },
 ];
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
 // Updated mock data for service performance
 const servicePerformanceData = [
-  { name: 'Jan', 'Couch Cleaning': 40, 'Carpet Cleaning': 30, 'Car Seats Cleaning': 20, 'Mattress Cleaning': 25 },
-  { name: 'Feb', 'Couch Cleaning': 45, 'Carpet Cleaning': 35, 'Car Seats Cleaning': 25, 'Mattress Cleaning': 30 },
-  { name: 'Mar', 'Couch Cleaning': 50, 'Carpet Cleaning': 40, 'Car Seats Cleaning': 30, 'Mattress Cleaning': 35 },
-  { name: 'Apr', 'Couch Cleaning': 55, 'Carpet Cleaning': 45, 'Car Seats Cleaning': 35, 'Mattress Cleaning': 40 },
-  { name: 'May', 'Couch Cleaning': 60, 'Carpet Cleaning': 50, 'Car Seats Cleaning': 40, 'Mattress Cleaning': 45 },
-  { name: 'Jun', 'Couch Cleaning': 65, 'Carpet Cleaning': 55, 'Car Seats Cleaning': 45, 'Mattress Cleaning': 50 },
+  {
+    name: "Jan",
+    "Couch Cleaning": 40,
+    "Carpet Cleaning": 30,
+    "Car Seats Cleaning": 20,
+    "Mattress Cleaning": 25,
+  },
+  {
+    name: "Feb",
+    "Couch Cleaning": 45,
+    "Carpet Cleaning": 35,
+    "Car Seats Cleaning": 25,
+    "Mattress Cleaning": 30,
+  },
+  {
+    name: "Mar",
+    "Couch Cleaning": 50,
+    "Carpet Cleaning": 40,
+    "Car Seats Cleaning": 30,
+    "Mattress Cleaning": 35,
+  },
+  {
+    name: "Apr",
+    "Couch Cleaning": 55,
+    "Carpet Cleaning": 45,
+    "Car Seats Cleaning": 35,
+    "Mattress Cleaning": 40,
+  },
+  {
+    name: "May",
+    "Couch Cleaning": 60,
+    "Carpet Cleaning": 50,
+    "Car Seats Cleaning": 40,
+    "Mattress Cleaning": 45,
+  },
+  {
+    name: "Jun",
+    "Couch Cleaning": 65,
+    "Carpet Cleaning": 55,
+    "Car Seats Cleaning": 45,
+    "Mattress Cleaning": 50,
+  },
 ];
 
 // Mock data for today's bookings
 const todayBookings = [
-  { id: 1, client: 'Acme Corp', location: 'New York', team: ['John', 'Jane'], price: 150000, time: '09:00 AM' },
-  { id: 2, client: 'XYZ Inc', location: 'Los Angeles', team: ['Alice', 'Bob'], price: 200000, time: '11:30 AM' },
-  { id: 3, client: 'Tech Solutions', location: 'Chicago', team: ['Charlie', 'Diana'], price: 180000, time: '02:00 PM' },
-  { id: 4, client: 'Global Industries', location: 'Houston', team: ['Eve', 'Frank'], price: 220000, time: '04:30 PM' },
+  {
+    id: 1,
+    client: "Acme Corp",
+    location: "New York",
+    team: ["John", "Jane"],
+    price: 150000,
+    time: "09:00 AM",
+  },
+  {
+    id: 2,
+    client: "XYZ Inc",
+    location: "Los Angeles",
+    team: ["Alice", "Bob"],
+    price: 200000,
+    time: "11:30 AM",
+  },
+  {
+    id: 3,
+    client: "Tech Solutions",
+    location: "Chicago",
+    team: ["Charlie", "Diana"],
+    price: 180000,
+    time: "02:00 PM",
+  },
+  {
+    id: 4,
+    client: "Global Industries",
+    location: "Houston",
+    team: ["Eve", "Frank"],
+    price: 220000,
+    time: "04:30 PM",
+  },
 ];
 
 // Helper function to format FCFA
 const formatFCFA = (value: number) => {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF' }).format(value);
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "XOF",
+  }).format(value);
 };
 
 export default function Home() {
   const [selectedTab, setSelectedTab] = useState<string>("today");
   const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
     start: new Date(new Date().setMonth(new Date().getMonth() - 3)),
-    end: new Date()
+    end: new Date(),
   });
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [activitiesPage, setActivitiesPage] = useState(1);
@@ -63,8 +162,8 @@ export default function Home() {
     bookings: 0,
     revenue: 0,
     teamMembers: 0,
-    topService: '',
-    completionRate: 0
+    topService: "",
+    completionRate: 0,
   });
 
   const handleTabChange = (key: React.Key) => {
@@ -85,12 +184,48 @@ export default function Home() {
   const fetchRecentActivities = async () => {
     // This is a mock implementation. Replace with actual API call.
     const mockActivities = [
-      { id: 1, type: 'booking', description: 'New booking for office cleaning', time: '2 hours ago', value: '150000 FCFA', customer: 'Acme Corp' },
-      { id: 2, type: 'income', description: 'Payment received for Job #1234', time: '4 hours ago', value: '200000 FCFA', customer: 'XYZ Inc' },
-      { id: 3, type: 'expense', description: 'Equipment purchase', time: '1 day ago', value: '50000 FCFA', customer: 'N/A' },
-      { id: 4, type: 'booking', description: 'Completed job #5678', time: '2 days ago', value: '5 star rating', customer: 'ABC Ltd' },
-      { id: 5, type: 'income', description: 'Payment received for Job #5678', time: '2 days ago', value: '180000 FCFA', customer: 'ABC Ltd' },
+      {
+        id: 1,
+        type: "booking",
+        description: "New booking for office cleaning",
+        time: "2 hours ago",
+        value: "150000 FCFA",
+        customer: "Acme Corp",
+      },
+      {
+        id: 2,
+        type: "income",
+        description: "Payment received for Job #1234",
+        time: "4 hours ago",
+        value: "200000 FCFA",
+        customer: "XYZ Inc",
+      },
+      {
+        id: 3,
+        type: "expense",
+        description: "Equipment purchase",
+        time: "1 day ago",
+        value: "50000 FCFA",
+        customer: "N/A",
+      },
+      {
+        id: 4,
+        type: "booking",
+        description: "Completed job #5678",
+        time: "2 days ago",
+        value: "5 star rating",
+        customer: "ABC Ltd",
+      },
+      {
+        id: 5,
+        type: "income",
+        description: "Payment received for Job #5678",
+        time: "2 days ago",
+        value: "180000 FCFA",
+        customer: "ABC Ltd",
+      },
     ];
+
     setRecentActivities(mockActivities);
     setTotalActivities(mockActivities.length);
   };
@@ -101,8 +236,8 @@ export default function Home() {
       bookings: 5,
       revenue: 250000,
       teamMembers: 3,
-      topService: 'Carpet Cleaning',
-      completionRate: 92
+      topService: "Carpet Cleaning",
+      completionRate: 92,
     });
   };
 
@@ -111,14 +246,16 @@ export default function Home() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className={title({ size: "sm" })}>Dashboard Overview</h2>
-          <h3 className={subtitle({ class: "mt-1" })}>Here's a summary of your business</h3>
+          <h3 className={subtitle({ class: "mt-1" })}>
+            Here's a summary of your business
+          </h3>
         </div>
         <DateRangePicker onChange={handleDateRangeChange} />
       </div>
 
-      <Tabs 
-        aria-label="Time frame options" 
-        selectedKey={selectedTab} 
+      <Tabs
+        aria-label="Time frame options"
+        selectedKey={selectedTab}
         onSelectionChange={handleTabChange}
       >
         <Tab key="today" title="Today" />
@@ -178,14 +315,14 @@ export default function Home() {
         <Card className="col-span-1">
           <CardHeader>Revenue Over Time</CardHeader>
           <CardBody>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer height={300} width="100%">
               <BarChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
                 <YAxis tickFormatter={(value) => `${value / 1000000}M`} />
-                <Tooltip 
-                  cursor={{fill: 'transparent'}}
-                  formatter={(value: number) => [formatFCFA(value), 'Amount']}
+                <Tooltip
+                  cursor={{ fill: "transparent" }}
+                  formatter={(value: number) => [formatFCFA(value), "Amount"]}
                 />
                 <Legend />
                 <Bar dataKey="income" fill="#8884d8" name="Income" />
@@ -199,26 +336,35 @@ export default function Home() {
           <CardHeader className="flex justify-between items-center">
             <span>Recent Activities</span>
             <Pagination
-              total={Math.ceil(totalActivities / 5)}
               page={activitiesPage}
-              onChange={setActivitiesPage}
               size="sm"
+              total={Math.ceil(totalActivities / 5)}
+              onChange={setActivitiesPage}
             />
           </CardHeader>
           <CardBody>
             <ul className="space-y-2">
               {recentActivities.map((activity) => (
-                <li key={activity.id} className="flex items-center gap-2 text-sm">
-                  <div className={`p-1 rounded-full ${
-                    activity.type === 'booking' ? 'bg-primary/10' : 
-                    activity.type === 'expense' ? 'bg-warning/10' : 
-                    activity.type === 'income' ? 'bg-success/10' : 'bg-secondary/10'
-                  }`}>
-                    {activity.type === 'booking' ? (
+                <li
+                  key={activity.id}
+                  className="flex items-center gap-2 text-sm"
+                >
+                  <div
+                    className={`p-1 rounded-full ${
+                      activity.type === "booking"
+                        ? "bg-primary/10"
+                        : activity.type === "expense"
+                          ? "bg-warning/10"
+                          : activity.type === "income"
+                            ? "bg-success/10"
+                            : "bg-secondary/10"
+                    }`}
+                  >
+                    {activity.type === "booking" ? (
                       <BriefcaseIcon className="h-4 w-4 text-primary" />
-                    ) : activity.type === 'expense' ? (
+                    ) : activity.type === "expense" ? (
                       <ExclamationCircleIcon className="h-4 w-4 text-warning" />
-                    ) : activity.type === 'income' ? (
+                    ) : activity.type === "income" ? (
                       <CurrencyDollarIcon className="h-4 w-4 text-success" />
                     ) : (
                       <UserGroupIcon className="h-4 w-4 text-secondary" />
@@ -226,9 +372,13 @@ export default function Home() {
                   </div>
                   <div className="flex-1">
                     <p className="font-medium">{activity.description}</p>
-                    <p className="text-xs text-default-400">{activity.time} - {activity.customer}</p>
+                    <p className="text-xs text-default-400">
+                      {activity.time} - {activity.customer}
+                    </p>
                   </div>
-                  <span className="text-xs font-medium text-success">{activity.value}</span>
+                  <span className="text-xs font-medium text-success">
+                    {activity.value}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -239,7 +389,7 @@ export default function Home() {
       <Card className="mt-4">
         <CardHeader>Service Performance</CardHeader>
         <CardBody>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer height={300} width="100%">
             <BarChart data={servicePerformanceData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
@@ -259,19 +409,22 @@ export default function Home() {
         <Card className="col-span-1">
           <CardHeader>Booking Status Distribution</CardHeader>
           <CardBody>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer height={300} width="100%">
               <PieChart>
                 <Pie
-                  data={bookingStatusData}
                   cx="50%"
                   cy="50%"
+                  data={bookingStatusData}
+                  dataKey="value"
+                  fill="#8884d8"
                   labelLine={false}
                   outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
                 >
                   {bookingStatusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -300,11 +453,11 @@ export default function Home() {
                     <TableCell>
                       <AvatarGroup isBordered max={3}>
                         {booking.team.map((member, index) => (
-                          <Avatar 
+                          <Avatar
                             key={index}
                             name={member}
-                            src={`https://i.pravatar.cc/150?u=${member}`}
                             size="sm"
+                            src={`https://i.pravatar.cc/150?u=${member}`}
                           />
                         ))}
                       </AvatarGroup>

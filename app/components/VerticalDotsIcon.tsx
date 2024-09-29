@@ -1,6 +1,11 @@
 import React from "react";
 
-export const VerticalDotsIcon = ({ size = 24, width, height, ...props }: React.SVGProps<SVGSVGElement> & { size?: number }) => (
+export const VerticalDotsIcon = ({
+  size = 24,
+  width,
+  height,
+  ...props
+}: React.SVGProps<SVGSVGElement> & { size?: number }) => (
   <svg
     aria-hidden="true"
     fill="none"

@@ -18,9 +18,9 @@ export function Providers({ children, themeProps }: ProvidersProps) {
     <NextUIProvider navigate={router.push}>
       <NextThemesProvider
         {...themeProps}
-        defaultTheme="dark"
         attribute="class"
-        themes={['light', 'dark']}
+        defaultTheme="dark"
+        themes={["light", "dark"]}
       >
         {children}
       </NextThemesProvider>

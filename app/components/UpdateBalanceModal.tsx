@@ -1,6 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem, Textarea, Spinner } from "@nextui-org/react";
-import { TrashIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useState } from "react";
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Input,
+  Select,
+  SelectItem,
+  Textarea,
+  Spinner,
+} from "@nextui-org/react";
+import { TrashIcon } from "@heroicons/react/24/outline";
 
 interface UpdateBalanceModalProps {
   isOpen: boolean;
@@ -35,7 +47,7 @@ export function UpdateBalanceModal({
   handleClearBalance,
   currentBalance,
   isLoading,
-  isClearingBalance
+  isClearingBalance,
 }: UpdateBalanceModalProps) {
   const [isClearConfirmOpen, setIsClearConfirmOpen] = useState(false);
 
@@ -54,82 +66,93 @@ export function UpdateBalanceModal({
     await handleClearBalance();
   };
 
-  const isActionInProgress = isLoading || isClearingBalance || isClearConfirmOpen;
+  const isActionInProgress =
+    isLoading || isClearingBalance || isClearConfirmOpen;
 
   return (
     <>
-      <Modal 
-        isOpen={isOpen} 
-        onClose={onClose}
-        isDismissable={false}
-      >
+      <Modal isDismissable={false} isOpen={isOpen} onClose={onClose}>
         <ModalContent>
           <ModalHeader>Update Balance for {memberName}</ModalHeader>
           <ModalBody>
             <Input
-              type="number"
+              description="Enter a positive value. The amount will be added or subtracted based on the reason."
+              errorMessage={
+                balanceError !== "Please select a reason" ? balanceError : ""
+              }
+              isDisabled={isActionInProgress}
+              isInvalid={
+                !!balanceError && balanceError !== "Please select a reason"
+              }
               label="Amount:"
-              value={balanceChange}
-              onValueChange={setBalanceChange}
               startContent={
                 <div className="pointer-events-none flex items-center">
                   <span className="text-default-400 text-small">FCFA</span>
                 </div>
               }
-              description="Enter a positive value. The amount will be added or subtracted based on the reason."
-              isInvalid={!!balanceError && balanceError !== "Please select a reason"}
-              errorMessage={balanceError !== "Please select a reason" ? balanceError : ""}
-              isDisabled={isActionInProgress}
+              type="number"
+              value={balanceChange}
+              onValueChange={setBalanceChange}
             />
             <Select
+              isRequired
+              errorMessage={
+                balanceError === "Please select a reason" ? balanceError : ""
+              }
+              isDisabled={isActionInProgress}
+              isInvalid={balanceError === "Please select a reason"}
               label="Reason"
               placeholder="Select a reason"
+              selectedKeys={balanceReason ? [balanceReason] : []}
               value={balanceReason}
               onChange={(e) => setBalanceReason(e.target.value)}
-              isRequired
-              isInvalid={balanceError === "Please select a reason"}
-              errorMessage={balanceError === "Please select a reason" ? balanceError : ""}
-              selectedKeys={balanceReason ? [balanceReason] : []}
-              isDisabled={isActionInProgress}
             >
-              <SelectItem key="Daily salary" value="Daily salary">Daily salary (Increase)</SelectItem>
-              <SelectItem key="Bonus" value="Bonus">Bonus (Increase)</SelectItem>
-              <SelectItem key="Transport" value="Transport">Transport (Increase)</SelectItem>
-              <SelectItem key="Deduction" value="Deduction">Deduction (Decrease)</SelectItem>
+              <SelectItem key="Daily salary" value="Daily salary">
+                Daily salary (Increase)
+              </SelectItem>
+              <SelectItem key="Bonus" value="Bonus">
+                Bonus (Increase)
+              </SelectItem>
+              <SelectItem key="Transport" value="Transport">
+                Transport (Increase)
+              </SelectItem>
+              <SelectItem key="Deduction" value="Deduction">
+                Deduction (Decrease)
+              </SelectItem>
             </Select>
             <Textarea
+              isDisabled={isActionInProgress}
               label="Note (optional)"
               placeholder="Enter any additional information"
               value={balanceNote}
               onValueChange={setBalanceNote}
-              isDisabled={isActionInProgress}
             />
           </ModalBody>
           <ModalFooter className="flex justify-between">
-            <Button 
-              color="warning" 
-              variant="flat" 
-              onPress={handleClearBalanceClick}
+            <Button
+              color="warning"
               isDisabled={currentBalance === 0 || isActionInProgress}
               startContent={<TrashIcon className="w-4 h-4" />}
+              variant="flat"
+              onPress={handleClearBalanceClick}
             >
               Clear Balance
             </Button>
             <div>
-              <Button 
-                color="danger" 
-                variant="light" 
-                onPress={onClose} 
-                isDisabled={isActionInProgress}
+              <Button
                 className="mr-2"
+                color="danger"
+                isDisabled={isActionInProgress}
+                variant="light"
+                onPress={onClose}
               >
                 Cancel
               </Button>
-              <Button 
-                color="primary" 
-                onPress={handleConfirmBalanceUpdate}
+              <Button
+                color="primary"
                 isDisabled={isActionInProgress}
                 startContent={isLoading ? <Spinner size="sm" /> : null}
+                onPress={handleConfirmBalanceUpdate}
               >
                 {isLoading ? "Submitting..." : "Submit"}
               </Button>
@@ -138,10 +161,10 @@ export function UpdateBalanceModal({
         </ModalContent>
       </Modal>
 
-      <Modal 
-        isOpen={isClearConfirmOpen} 
-        onClose={() => setIsClearConfirmOpen(false)}
+      <Modal
         isDismissable={false}
+        isOpen={isClearConfirmOpen}
+        onClose={() => setIsClearConfirmOpen(false)}
       >
         <ModalContent>
           <ModalHeader>Confirm Clear Balance</ModalHeader>
@@ -151,10 +174,19 @@ export function UpdateBalanceModal({
             <p>This action cannot be undone.</p>
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="light" onPress={() => setIsClearConfirmOpen(false)} isDisabled={isClearingBalance}>
+            <Button
+              color="default"
+              isDisabled={isClearingBalance}
+              variant="light"
+              onPress={() => setIsClearConfirmOpen(false)}
+            >
               Cancel
             </Button>
-            <Button color="danger" onPress={handleConfirmClear} isLoading={isClearingBalance}>
+            <Button
+              color="danger"
+              isLoading={isClearingBalance}
+              onPress={handleConfirmClear}
+            >
               Clear Balance
             </Button>
           </ModalFooter>

@@ -6,12 +6,13 @@ esm/*
 public/*
 tests/*
 scripts/*
-*.config.js
 .DS_Store
 node_modules
 coverage
 .next
 build
+
+# Keep these config files
 !.commitlintrc.cjs
 !.lintstagedrc.cjs
 !jest.config.js

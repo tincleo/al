@@ -9,7 +9,11 @@ export function formatDate(dateString: string): string {
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString("en-US", {
+      hour12: false,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   if (date.toDateString() === now.toDateString()) {
@@ -19,22 +23,29 @@ export function formatDate(dateString: string): string {
   } else if (date.toDateString() === tomorrow.toDateString()) {
     return `Tomorrow at ${formatTime(date)}`;
   } else {
-    const diffDays = Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+    const diffDays = Math.round(
+      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
     if (diffDays > 0 && diffDays < 7) {
       return `${diffDays}d ago at ${formatTime(date)}`;
     } else {
-      return date.toLocaleString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: false 
+      return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
       });
     }
   }
 }
 
-export const formatPrice = (price: number, includeCurrency: boolean = false): string => {
-  const formattedPrice = price.toLocaleString('fr-FR');
+export const formatPrice = (
+  price: number,
+  includeCurrency: boolean = false,
+): string => {
+  const formattedPrice = price.toLocaleString("fr-FR");
+
   return includeCurrency ? `${formattedPrice} FCFA` : formattedPrice;
 };

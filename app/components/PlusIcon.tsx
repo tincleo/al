@@ -1,6 +1,11 @@
 import React from "react";
 
-export const PlusIcon = ({ size = 24, width, height, ...props }: React.SVGProps<SVGSVGElement> & { size?: number }) => (
+export const PlusIcon = ({
+  size = 24,
+  width,
+  height,
+  ...props
+}: React.SVGProps<SVGSVGElement> & { size?: number }) => (
   <svg
     aria-hidden="true"
     fill="none"

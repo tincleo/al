@@ -1,16 +1,65 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardBody, CardHeader, Divider, Input, Button, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Tabs, Tab, Checkbox, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Switch, Textarea, Select, SelectItem } from "@nextui-org/react";
-import { PlusIcon, TrashIcon, PencilIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useMemo } from "react";
+import {
+  Card,
+  CardBody,
+  CardHeader,
+  Divider,
+  Input,
+  Button,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Tabs,
+  Tab,
+  Checkbox,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
+  Switch,
+  Textarea,
+  Select,
+  SelectItem,
+} from "@nextui-org/react";
+import {
+  PlusIcon,
+  TrashIcon,
+  PencilIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline";
+import toast from "react-hot-toast";
+import { Toaster } from "react-hot-toast";
+
 import { supabase } from "@/lib/supabaseClient";
-import toast from 'react-hot-toast';
-import { Toaster } from 'react-hot-toast';
 
 const SERVICES = ["Couch", "Chair", "Carpet", "House", "Car seats"];
-const LOCATIONS = ["Bastos", "Mvan", "Nsimeyong", "Biyem-Assi", "Mimboman", "Ngousso", "Emana", "Nkolbisson", "Ekounou", "Essos"];
+const LOCATIONS = [
+  "Bastos",
+  "Mvan",
+  "Nsimeyong",
+  "Biyem-Assi",
+  "Mimboman",
+  "Ngousso",
+  "Emana",
+  "Nkolbisson",
+  "Ekounou",
+  "Essos",
+];
 const ROLES = ["Admin", "Manager", "Technician", "Marketing"];
-const STATUSES = ["Follow-up", "Scheduled", "Confirmed", "Completed", "Canceled"];
+const STATUSES = [
+  "Follow-up",
+  "Scheduled",
+  "Confirmed",
+  "Completed",
+  "Canceled",
+];
 
 type Location = {
   id: string;
@@ -30,7 +79,9 @@ type BookingStatus = {
 };
 
 export default function Settings() {
-  const [services, setServices] = useState<Array<{ id: string, name: string, enabled: boolean }>>([]);
+  const [services, setServices] = useState<
+    Array<{ id: string; name: string; enabled: boolean }>
+  >([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [roles, setRoles] = useState(ROLES);
   const [statuses, setStatuses] = useState<BookingStatus[]>([]);
@@ -39,7 +90,9 @@ export default function Settings() {
   const [newLocation, setNewLocation] = useState("");
   const [newRole, setNewRole] = useState("");
   const [newStatus, setNewStatus] = useState("");
-  const [newLocationNeighboring, setNewLocationNeighboring] = useState<string[]>([]);
+  const [newLocationNeighboring, setNewLocationNeighboring] = useState<
+    string[]
+  >([]);
 
   const [serviceError, setServiceError] = useState(false);
   const [locationError, setLocationError] = useState(false);
@@ -56,12 +109,23 @@ export default function Settings() {
 
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deletingItem, setDeletingItem] = useState<any>(null);
-  const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onClose: onEditModalClose } = useDisclosure();
-  const { isOpen: isDeleteModalOpen, onOpen: onDeleteModalOpen, onClose: onDeleteModalClose } = useDisclosure();
+  const {
+    isOpen: isEditModalOpen,
+    onOpen: onEditModalOpen,
+    onClose: onEditModalClose,
+  } = useDisclosure();
+  const {
+    isOpen: isDeleteModalOpen,
+    onOpen: onDeleteModalOpen,
+    onClose: onDeleteModalClose,
+  } = useDisclosure();
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortDescriptor, setSortDescriptor] = useState<{ column: keyof Location, direction: "ascending" | "descending" }>({ column: "name", direction: "ascending" });
+  const [sortDescriptor, setSortDescriptor] = useState<{
+    column: keyof Location;
+    direction: "ascending" | "descending";
+  }>({ column: "name", direction: "ascending" });
 
   useEffect(() => {
     fetchLocations();
@@ -73,14 +137,14 @@ export default function Settings() {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('locations')
-        .select('*')
-        .order('name');
+        .from("locations")
+        .select("*")
+        .order("name");
 
       if (error) throw error;
       setLocations(data || []);
     } catch (error) {
-      console.error('Error fetching locations:', error);
+      console.error("Error fetching locations:", error);
     } finally {
       setIsLoading(false);
     }
@@ -90,15 +154,15 @@ export default function Settings() {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('services')
-        .select('id, name, enabled')
-        .order('name');
+        .from("services")
+        .select("id, name, enabled")
+        .order("name");
 
       if (error) throw error;
       setServices(data || []);
     } catch (error) {
-      console.error('Error fetching services:', error);
-      toast.error('Failed to fetch services. Please try again.');
+      console.error("Error fetching services:", error);
+      toast.error("Failed to fetch services. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -108,24 +172,27 @@ export default function Settings() {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('booking_status')
-        .select('*')
-        .order('name');
+        .from("booking_status")
+        .select("*")
+        .order("name");
 
       if (error) throw error;
       setStatuses(data || []);
     } catch (error) {
-      console.error('Error fetching statuses:', error);
-      toast.error('Failed to fetch statuses. Please try again.');
+      console.error("Error fetching statuses:", error);
+      toast.error("Failed to fetch statuses. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const filteredLocations = useMemo(() => {
-    return locations.filter(location =>
-      location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      location.neighboring.some(neighbor => neighbor.toLowerCase().includes(searchQuery.toLowerCase()))
+    return locations.filter(
+      (location) =>
+        location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        location.neighboring.some((neighbor) =>
+          neighbor.toLowerCase().includes(searchQuery.toLowerCase()),
+        ),
     );
   }, [locations, searchQuery]);
 
@@ -134,6 +201,7 @@ export default function Settings() {
       const first = a[sortDescriptor.column];
       const second = b[sortDescriptor.column];
       const cmp = first < second ? -1 : first > second ? 1 : 0;
+
       return sortDescriptor.direction === "descending" ? -cmp : cmp;
     });
   }, [filteredLocations, sortDescriptor]);
@@ -142,7 +210,7 @@ export default function Settings() {
     if (newService.trim()) {
       try {
         const { data, error } = await supabase
-          .from('services')
+          .from("services")
           .insert({ name: newService, enabled: true })
           .select()
           .single();
@@ -153,10 +221,10 @@ export default function Settings() {
         setNewService("");
         setIsNewServiceModalOpen(false);
         setServiceError(false);
-        toast.success('Service added successfully!');
+        toast.success("Service added successfully!");
       } catch (error) {
-        console.error('Error adding service:', error);
-        toast.error('Failed to add service. Please try again.');
+        console.error("Error adding service:", error);
+        toast.error("Failed to add service. Please try again.");
       }
     } else {
       setServiceError(true);
@@ -168,13 +236,13 @@ export default function Settings() {
       try {
         setIsLoading(true);
         const { data, error } = await supabase
-          .from('locations')
+          .from("locations")
           .insert({
             name: newLocation,
             neighboring: newLocationNeighboring,
             follow_up: 0,
             bookings: 0,
-            completed: 0
+            completed: 0,
           })
           .select();
 
@@ -186,17 +254,17 @@ export default function Settings() {
           setNewLocationNeighboring([]);
           setIsNewLocationModalOpen(false);
           setLocationError(false);
-          toast.success('Location added successfully!');
+          toast.success("Location added successfully!");
           await fetchLocations(); // Refresh the locations data
         } else {
-          throw new Error('No data returned from insert operation');
+          throw new Error("No data returned from insert operation");
         }
       } catch (error) {
-        console.error('Error adding location:', error);
+        console.error("Error adding location:", error);
         if (error instanceof Error) {
           toast.error(`Failed to add location: ${error.message}`);
         } else {
-          toast.error('Failed to add location. Please try again.');
+          toast.error("Failed to add location. Please try again.");
         }
       } finally {
         setIsLoading(false);
@@ -231,19 +299,21 @@ export default function Settings() {
   const handleToggleService = async (id: string, enabled: boolean) => {
     try {
       const { error } = await supabase
-        .from('services')
+        .from("services")
         .update({ enabled: !enabled })
-        .eq('id', id);
+        .eq("id", id);
 
       if (error) throw error;
 
-      setServices(services.map(service => 
-        service.id === id ? { ...service, enabled: !enabled } : service
-      ));
-      toast.success('Service updated successfully!');
+      setServices(
+        services.map((service) =>
+          service.id === id ? { ...service, enabled: !enabled } : service,
+        ),
+      );
+      toast.success("Service updated successfully!");
     } catch (error) {
-      console.error('Error updating service:', error);
-      toast.error('Failed to update service. Please try again.');
+      console.error("Error updating service:", error);
+      toast.error("Failed to update service. Please try again.");
     }
   };
 
@@ -253,29 +323,30 @@ export default function Settings() {
   };
 
   const getLocationNameById = (id: string) => {
-    const location = locations.find(loc => loc.id === id);
-    return location ? location.name : '';
+    const location = locations.find((loc) => loc.id === id);
+
+    return location ? location.name : "";
   };
 
   const handleSaveLocation = async () => {
     if (editingLocation) {
       try {
         const { error } = await supabase
-          .from('locations')
+          .from("locations")
           .update({
             name: editingLocation.name,
-            neighboring: editingLocation.neighboring
+            neighboring: editingLocation.neighboring,
           })
-          .eq('id', editingLocation.id);
+          .eq("id", editingLocation.id);
 
         if (error) throw error;
 
         setIsEditLocationModalOpen(false);
         await fetchLocations(); // Refresh the locations data
-        toast.success('Location updated successfully!');
+        toast.success("Location updated successfully!");
       } catch (error) {
-        console.error('Error updating location:', error);
-        toast.error('Failed to update location. Please try again.');
+        console.error("Error updating location:", error);
+        toast.error("Failed to update location. Please try again.");
       }
     }
   };
@@ -287,18 +358,15 @@ export default function Settings() {
 
   const handleDeleteService = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('services')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from("services").delete().eq("id", id);
 
       if (error) throw error;
 
-      setServices(services.filter(service => service.id !== id));
-      toast.success('Service deleted successfully!');
+      setServices(services.filter((service) => service.id !== id));
+      toast.success("Service deleted successfully!");
     } catch (error) {
-      console.error('Error deleting service:', error);
-      toast.error('Failed to delete service. Please try again.');
+      console.error("Error deleting service:", error);
+      toast.error("Failed to delete service. Please try again.");
     }
   };
 
@@ -306,18 +374,18 @@ export default function Settings() {
     if (deletingItem) {
       try {
         const { error } = await supabase
-          .from('locations')
+          .from("locations")
           .delete()
-          .eq('id', deletingItem.id);
+          .eq("id", deletingItem.id);
 
         if (error) throw error;
 
         onDeleteModalClose();
         await fetchLocations(); // Refresh the locations data
-        toast.success('Location deleted successfully!');
+        toast.success("Location deleted successfully!");
       } catch (error) {
-        console.error('Error deleting location:', error);
-        toast.error('Failed to delete location. Please try again.');
+        console.error("Error deleting location:", error);
+        toast.error("Failed to delete location. Please try again.");
       }
     }
   };
@@ -327,22 +395,24 @@ export default function Settings() {
   };
 
   const handleEditSave = async (item: any) => {
-    if (item.type === 'services') {
+    if (item.type === "services") {
       try {
         const { error } = await supabase
-          .from('services')
+          .from("services")
           .update({ name: item.name })
-          .eq('id', item.id);
+          .eq("id", item.id);
 
         if (error) throw error;
 
-        setServices(services.map(service => 
-          service.id === item.id ? { ...service, name: item.name } : service
-        ));
-        toast.success('Service updated successfully!');
+        setServices(
+          services.map((service) =>
+            service.id === item.id ? { ...service, name: item.name } : service,
+          ),
+        );
+        toast.success("Service updated successfully!");
       } catch (error) {
-        console.error('Error updating service:', error);
-        toast.error('Failed to update service. Please try again.');
+        console.error("Error updating service:", error);
+        toast.error("Failed to update service. Please try again.");
       }
     }
     // Add more conditions here for other types (locations, roles, statuses) if needed
@@ -361,11 +431,17 @@ export default function Settings() {
               <div className="flex items-center gap-4">
                 <Input
                   placeholder="Search locations..."
+                  startContent={
+                    <MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />
+                  }
                   value={searchQuery}
                   onValueChange={setSearchQuery}
-                  startContent={<MagnifyingGlassIcon className="w-4 h-4 text-gray-400" />}
                 />
-                <Button color="primary" size="sm" onPress={() => setIsNewLocationModalOpen(true)}>
+                <Button
+                  color="primary"
+                  size="sm"
+                  onPress={() => setIsNewLocationModalOpen(true)}
+                >
                   <PlusIcon className="w-4 h-4 mr-1" />
                   New Location
                 </Button>
@@ -379,29 +455,56 @@ export default function Settings() {
                 <Table
                   aria-label="Locations"
                   sortDescriptor={sortDescriptor}
-                  onSortChange={(descriptor) => setSortDescriptor(descriptor as typeof sortDescriptor)}
+                  onSortChange={(descriptor) =>
+                    setSortDescriptor(descriptor as typeof sortDescriptor)
+                  }
                 >
                   <TableHeader>
-                    <TableColumn key="name" allowsSorting>Location</TableColumn>
-                    <TableColumn key="neighboring" allowsSorting>Neighboring</TableColumn>
-                    <TableColumn key="follow_up" allowsSorting>Follow-up</TableColumn>
-                    <TableColumn key="bookings" allowsSorting>Bookings</TableColumn>
-                    <TableColumn key="completed" allowsSorting>Completed</TableColumn>
+                    <TableColumn key="name" allowsSorting>
+                      Location
+                    </TableColumn>
+                    <TableColumn key="neighboring" allowsSorting>
+                      Neighboring
+                    </TableColumn>
+                    <TableColumn key="follow_up" allowsSorting>
+                      Follow-up
+                    </TableColumn>
+                    <TableColumn key="bookings" allowsSorting>
+                      Bookings
+                    </TableColumn>
+                    <TableColumn key="completed" allowsSorting>
+                      Completed
+                    </TableColumn>
                     <TableColumn>Actions</TableColumn>
                   </TableHeader>
                   <TableBody>
                     {sortedLocations.map((location) => (
                       <TableRow key={location.id}>
                         <TableCell>{location.name}</TableCell>
-                        <TableCell>{location.neighboring.map(getLocationNameById).join(', ')}</TableCell>
+                        <TableCell>
+                          {location.neighboring
+                            .map(getLocationNameById)
+                            .join(", ")}
+                        </TableCell>
                         <TableCell>{location.follow_up}</TableCell>
                         <TableCell>{location.bookings}</TableCell>
                         <TableCell>{location.completed}</TableCell>
                         <TableCell>
-                          <Button isIconOnly size="sm" variant="light" onPress={() => handleEditLocation(location)}>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            onPress={() => handleEditLocation(location)}
+                          >
                             <PencilIcon className="w-5 h-5" />
                           </Button>
-                          <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(location, 'locations')}>
+                          <Button
+                            isIconOnly
+                            color="danger"
+                            size="sm"
+                            variant="light"
+                            onPress={() => handleDelete(location, "locations")}
+                          >
                             <TrashIcon className="w-5 h-5" />
                           </Button>
                         </TableCell>
@@ -417,7 +520,11 @@ export default function Settings() {
           <Card>
             <CardHeader className="flex justify-between items-center">
               <h2 className="text-sm font-medium">Manage Cleaning Services</h2>
-              <Button color="primary" size="sm" onPress={() => setIsNewServiceModalOpen(true)}>
+              <Button
+                color="primary"
+                size="sm"
+                onPress={() => setIsNewServiceModalOpen(true)}
+              >
                 <PlusIcon className="w-4 h-4 mr-1" />
                 New Service
               </Button>
@@ -443,17 +550,30 @@ export default function Settings() {
                         <TableCell>
                           <Switch
                             isSelected={service.enabled}
-                            onValueChange={() => handleToggleService(service.id, service.enabled)}
+                            onValueChange={() =>
+                              handleToggleService(service.id, service.enabled)
+                            }
                           />
                         </TableCell>
                         <TableCell>{service.follow_up || 0}</TableCell>
                         <TableCell>{service.bookings || 0}</TableCell>
                         <TableCell>{service.completed || 0}</TableCell>
                         <TableCell>
-                          <Button isIconOnly size="sm" variant="light" onPress={() => handleEdit(service, 'services')}>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="light"
+                            onPress={() => handleEdit(service, "services")}
+                          >
                             <PencilIcon className="w-5 h-5" />
                           </Button>
-                          <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDeleteService(service.id)}>
+                          <Button
+                            isIconOnly
+                            color="danger"
+                            size="sm"
+                            variant="light"
+                            onPress={() => handleDeleteService(service.id)}
+                          >
                             <TrashIcon className="w-5 h-5" />
                           </Button>
                         </TableCell>
@@ -469,7 +589,11 @@ export default function Settings() {
           <Card>
             <CardHeader className="flex justify-between items-center">
               <h2 className="text-sm font-medium">Manage Booking Statuses</h2>
-              <Button color="primary" size="sm" onPress={() => setIsNewStatusModalOpen(true)}>
+              <Button
+                color="primary"
+                size="sm"
+                onPress={() => setIsNewStatusModalOpen(true)}
+              >
                 <PlusIcon className="w-4 h-4 mr-1" />
                 New Status
               </Button>
@@ -505,7 +629,11 @@ export default function Settings() {
           <Card>
             <CardHeader className="flex justify-between items-center">
               <h2 className="text-sm font-medium">Manage Team Roles</h2>
-              <Button color="primary" size="sm" onPress={() => setIsNewRoleModalOpen(true)}>
+              <Button
+                color="primary"
+                size="sm"
+                onPress={() => setIsNewRoleModalOpen(true)}
+              >
                 <PlusIcon className="w-4 h-4 mr-1" />
                 New Role
               </Button>
@@ -533,7 +661,12 @@ export default function Settings() {
                         <Button isIconOnly size="sm" variant="light">
                           <PencilIcon className="w-5 h-5" />
                         </Button>
-                        <Button isIconOnly size="sm" variant="light" color="danger">
+                        <Button
+                          isIconOnly
+                          color="danger"
+                          size="sm"
+                          variant="light"
+                        >
                           <TrashIcon className="w-5 h-5" />
                         </Button>
                       </TableCell>
@@ -552,28 +685,16 @@ export default function Settings() {
             <Divider />
             <CardBody>
               <div className="flex flex-col gap-4">
-                <Input
-                  label="API Key"
-                  placeholder="Enter API key"
-                />
-                <Input
-                  label="App Version"
-                  placeholder="Enter app version"
-                />
+                <Input label="API Key" placeholder="Enter API key" />
+                <Input label="App Version" placeholder="Enter app version" />
                 <Textarea
                   label="Release Notes"
                   placeholder="Enter release notes"
                 />
-                <Switch
-                  isSelected={true}
-                  onValueChange={() => {}}
-                >
+                <Switch isSelected={true} onValueChange={() => {}}>
                   Enable Push Notifications
                 </Switch>
-                <Switch
-                  isSelected={false}
-                  onValueChange={() => {}}
-                >
+                <Switch isSelected={false} onValueChange={() => {}}>
                   Enable Dark Mode
                 </Switch>
               </div>
@@ -583,18 +704,22 @@ export default function Settings() {
       </Tabs>
 
       {/* New Service Modal */}
-      <Modal 
-        isOpen={isNewServiceModalOpen} 
+      <Modal
+        isOpen={isNewServiceModalOpen}
+        size="md"
         onClose={() => {
           setIsNewServiceModalOpen(false);
           setServiceError(false);
         }}
-        size="md"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">Add New Service</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            Add New Service
+          </ModalHeader>
           <ModalBody>
             <Input
+              color={serviceError ? "danger" : "default"}
+              errorMessage={serviceError ? "Service name cannot be empty" : ""}
               label="Service Name"
               placeholder="Enter new service"
               value={newService}
@@ -602,15 +727,17 @@ export default function Settings() {
                 setNewService(value);
                 setServiceError(false);
               }}
-              color={serviceError ? "danger" : "default"}
-              errorMessage={serviceError ? "Service name cannot be empty" : ""}
             />
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="light" onPress={() => {
-              setIsNewServiceModalOpen(false);
-              setServiceError(false);
-            }}>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => {
+                setIsNewServiceModalOpen(false);
+                setServiceError(false);
+              }}
+            >
               Cancel
             </Button>
             <Button color="primary" onPress={handleAddService}>
@@ -621,20 +748,26 @@ export default function Settings() {
       </Modal>
 
       {/* New Location Modal */}
-      <Modal 
-        isOpen={isNewLocationModalOpen} 
+      <Modal
+        isOpen={isNewLocationModalOpen}
+        size="md"
         onClose={() => {
           setIsNewLocationModalOpen(false);
           setLocationError(false);
           setNewLocation("");
           setNewLocationNeighboring([]);
         }}
-        size="md"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">Add New Location</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            Add New Location
+          </ModalHeader>
           <ModalBody>
             <Input
+              color={locationError ? "danger" : "default"}
+              errorMessage={
+                locationError ? "Location name cannot be empty" : ""
+              }
               label="Location Name"
               placeholder="Enter new location"
               value={newLocation}
@@ -642,16 +775,16 @@ export default function Settings() {
                 setNewLocation(value);
                 setLocationError(false);
               }}
-              color={locationError ? "danger" : "default"}
-              errorMessage={locationError ? "Location name cannot be empty" : ""}
             />
             <Select
+              isSearchable
               label="Neighboring Locations"
               placeholder="Select neighboring locations"
-              selectionMode="multiple"
               selectedKeys={new Set(newLocationNeighboring)}
-              onSelectionChange={(keys) => setNewLocationNeighboring(Array.from(keys) as string[])}
-              isSearchable
+              selectionMode="multiple"
+              onSelectionChange={(keys) =>
+                setNewLocationNeighboring(Array.from(keys) as string[])
+              }
             >
               {locations.map((location) => (
                 <SelectItem key={location.id} value={location.id}>
@@ -661,12 +794,16 @@ export default function Settings() {
             </Select>
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="light" onPress={() => {
-              setIsNewLocationModalOpen(false);
-              setLocationError(false);
-              setNewLocation("");
-              setNewLocationNeighboring([]);
-            }}>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => {
+                setIsNewLocationModalOpen(false);
+                setLocationError(false);
+                setNewLocation("");
+                setNewLocationNeighboring([]);
+              }}
+            >
               Cancel
             </Button>
             <Button color="primary" onPress={handleAddLocation}>
@@ -677,18 +814,22 @@ export default function Settings() {
       </Modal>
 
       {/* New Role Modal */}
-      <Modal 
-        isOpen={isNewRoleModalOpen} 
+      <Modal
+        isOpen={isNewRoleModalOpen}
+        size="md"
         onClose={() => {
           setIsNewRoleModalOpen(false);
           setRoleError(false);
         }}
-        size="md"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">Add New Role</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            Add New Role
+          </ModalHeader>
           <ModalBody>
             <Input
+              color={roleError ? "danger" : "default"}
+              errorMessage={roleError ? "Role name cannot be empty" : ""}
               label="Role Name"
               placeholder="Enter new role"
               value={newRole}
@@ -696,15 +837,17 @@ export default function Settings() {
                 setNewRole(value);
                 setRoleError(false);
               }}
-              color={roleError ? "danger" : "default"}
-              errorMessage={roleError ? "Role name cannot be empty" : ""}
             />
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="light" onPress={() => {
-              setIsNewRoleModalOpen(false);
-              setRoleError(false);
-            }}>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => {
+                setIsNewRoleModalOpen(false);
+                setRoleError(false);
+              }}
+            >
               Cancel
             </Button>
             <Button color="primary" onPress={handleAddRole}>
@@ -715,18 +858,22 @@ export default function Settings() {
       </Modal>
 
       {/* New Status Modal */}
-      <Modal 
-        isOpen={isNewStatusModalOpen} 
+      <Modal
+        isOpen={isNewStatusModalOpen}
+        size="md"
         onClose={() => {
           setIsNewStatusModalOpen(false);
           setStatusError(false);
         }}
-        size="md"
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">Add New Status</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            Add New Status
+          </ModalHeader>
           <ModalBody>
             <Input
+              color={statusError ? "danger" : "default"}
+              errorMessage={statusError ? "Status name cannot be empty" : ""}
               label="Status Name"
               placeholder="Enter new status"
               value={newStatus}
@@ -734,15 +881,17 @@ export default function Settings() {
                 setNewStatus(value);
                 setStatusError(false);
               }}
-              color={statusError ? "danger" : "default"}
-              errorMessage={statusError ? "Status name cannot be empty" : ""}
             />
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="light" onPress={() => {
-              setIsNewStatusModalOpen(false);
-              setStatusError(false);
-            }}>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => {
+                setIsNewStatusModalOpen(false);
+                setStatusError(false);
+              }}
+            >
               Cancel
             </Button>
             <Button color="primary" onPress={handleAddStatus}>
@@ -753,13 +902,15 @@ export default function Settings() {
       </Modal>
 
       {/* Edit Location Modal */}
-      <Modal 
-        isOpen={isEditLocationModalOpen} 
-        onClose={() => setIsEditLocationModalOpen(false)}
+      <Modal
+        isOpen={isEditLocationModalOpen}
         size="lg"
+        onClose={() => setIsEditLocationModalOpen(false)}
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">Edit Location</ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">
+            Edit Location
+          </ModalHeader>
           <ModalBody>
             {editingLocation && (
               <div className="flex flex-col gap-4">
@@ -767,15 +918,22 @@ export default function Settings() {
                   label="Location Name"
                   placeholder="Enter location name"
                   value={editingLocation.name}
-                  onValueChange={(value) => setEditingLocation({ ...editingLocation, name: value })}
+                  onValueChange={(value) =>
+                    setEditingLocation({ ...editingLocation, name: value })
+                  }
                 />
                 <Select
+                  isSearchable
                   label="Neighboring Locations"
                   placeholder="Select neighboring locations"
-                  selectionMode="multiple"
                   selectedKeys={new Set(editingLocation.neighboring)}
-                  onSelectionChange={(keys) => setEditingLocation({ ...editingLocation, neighboring: Array.from(keys) as string[] })}
-                  isSearchable
+                  selectionMode="multiple"
+                  onSelectionChange={(keys) =>
+                    setEditingLocation({
+                      ...editingLocation,
+                      neighboring: Array.from(keys) as string[],
+                    })
+                  }
                 >
                   {locations.map((location) => (
                     <SelectItem key={location.id} value={location.id}>
@@ -787,7 +945,11 @@ export default function Settings() {
             )}
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="light" onPress={() => setIsEditLocationModalOpen(false)}>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => setIsEditLocationModalOpen(false)}
+            >
               Cancel
             </Button>
             <Button color="primary" onPress={handleSaveLocation}>
@@ -798,7 +960,7 @@ export default function Settings() {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal isOpen={isEditModalOpen} onClose={onEditModalClose} size="md">
+      <Modal isOpen={isEditModalOpen} size="md" onClose={onEditModalClose}>
         <ModalContent>
           <ModalHeader>Edit {editingItem?.type.slice(0, -1)}</ModalHeader>
           <ModalBody>
@@ -806,7 +968,9 @@ export default function Settings() {
               <Input
                 label={`${editingItem.type.slice(0, -1)} Name`}
                 value={editingItem.name}
-                onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                onChange={(e) =>
+                  setEditingItem({ ...editingItem, name: e.target.value })
+                }
               />
             )}
           </ModalBody>
@@ -822,15 +986,24 @@ export default function Settings() {
       </Modal>
 
       {/* Delete Modal */}
-      <Modal isOpen={isDeleteModalOpen} onClose={onDeleteModalClose} size="md">
+      <Modal isOpen={isDeleteModalOpen} size="md" onClose={onDeleteModalClose}>
         <ModalContent>
           <ModalHeader>Confirm Deletion</ModalHeader>
           <ModalBody>
-            <p className="text-danger">Warning: This action cannot be undone.</p>
-            <p>Are you sure you want to delete this {deletingItem?.type.slice(0, -1)}?</p>
+            <p className="text-danger">
+              Warning: This action cannot be undone.
+            </p>
+            <p>
+              Are you sure you want to delete this{" "}
+              {deletingItem?.type.slice(0, -1)}?
+            </p>
           </ModalBody>
           <ModalFooter>
-            <Button color="default" variant="light" onPress={onDeleteModalClose}>
+            <Button
+              color="default"
+              variant="light"
+              onPress={onDeleteModalClose}
+            >
               Cancel
             </Button>
             <Button color="danger" onPress={handleDeleteConfirm}>

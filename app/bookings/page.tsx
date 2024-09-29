@@ -26,6 +26,12 @@ import {
   Avatar,
   AvatarGroup,
 } from "@nextui-org/react";
+import { useRouter } from "next/navigation";
+import { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
+
+import { supabase } from "@/lib/supabaseClient";
+
 import { PlusIcon } from "../components/PlusIcon";
 import { VerticalDotsIcon } from "../components/VerticalDotsIcon";
 import { ChevronDownIcon } from "../components/ChevronDownIcon";
@@ -33,13 +39,8 @@ import { SearchIcon } from "../components/SearchIcon";
 import { capitalize } from "../utils";
 import { title } from "../components/primitives";
 import { NewBookingForm } from "../components/NewBookingForm";
-import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
-import { useRouter } from 'next/navigation';
 import { formatDate } from "../utils"; // Assume we'll create this function
 import { formatPrice } from "../utils"; // We'll create this function
-import { Toaster } from 'react-hot-toast';
-import toast from 'react-hot-toast';
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   scheduled: "primary",
@@ -70,7 +71,16 @@ const statusOptions = [
   { name: "Canceled", uid: "canceled" },
 ];
 
-const INITIAL_VISIBLE_COLUMNS = ["rowNumber", "created_at", "services", "location", "planned_at", "price", "status", "client_phone"];
+const INITIAL_VISIBLE_COLUMNS = [
+  "rowNumber",
+  "created_at",
+  "services",
+  "location",
+  "planned_at",
+  "price",
+  "status",
+  "client_phone",
+];
 
 type Booking = {
   id: number;
@@ -92,8 +102,12 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterValue, setFilterValue] = React.useState("");
-  const [selectedKeys, setSelectedKeys] = React.useState<Selection>(new Set([]));
-  const [visibleColumns, setVisibleColumns] = React.useState<Selection>(new Set(INITIAL_VISIBLE_COLUMNS));
+  const [selectedKeys, setSelectedKeys] = React.useState<Selection>(
+    new Set([]),
+  );
+  const [visibleColumns, setVisibleColumns] = React.useState<Selection>(
+    new Set(INITIAL_VISIBLE_COLUMNS),
+  );
   const [statusFilter, setStatusFilter] = React.useState<Selection>("all");
   const [rowsPerPage, setRowsPerPage] = React.useState(10); // Set default to 10 rows
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
@@ -110,7 +124,9 @@ export default function BookingsPage() {
   const headerColumns = React.useMemo(() => {
     if (visibleColumns === "all") return columns;
 
-    return columns.filter((column) => Array.from(visibleColumns).includes(column.uid));
+    return columns.filter((column) =>
+      Array.from(visibleColumns).includes(column.uid),
+    );
   }, [visibleColumns]);
 
   useEffect(() => {
@@ -122,32 +138,34 @@ export default function BookingsPage() {
     try {
       // Fetch bookings
       const { data: bookingsData, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("bookings")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (bookingsError) throw bookingsError;
 
       // Fetch locations
       const { data: locationsData, error: locationsError } = await supabase
-        .from('locations')
-        .select('id, name');
+        .from("locations")
+        .select("id, name");
 
       if (locationsError) throw locationsError;
 
       // Create a map of location ids to names
-      const locationMap = new Map(locationsData.map(loc => [loc.id, loc.name]));
+      const locationMap = new Map(
+        locationsData.map((loc) => [loc.id, loc.name]),
+      );
 
       // Map bookings with location names
-      const bookingsWithLocationNames = bookingsData.map(booking => ({
+      const bookingsWithLocationNames = bookingsData.map((booking) => ({
         ...booking,
-        location_name: locationMap.get(booking.location) || 'Unknown'
+        location_name: locationMap.get(booking.location) || "Unknown",
       }));
 
       setBookings(bookingsWithLocationNames);
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load bookings');
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load bookings");
     } finally {
       setLoading(false);
     }
@@ -157,14 +175,23 @@ export default function BookingsPage() {
     let filteredBookings = [...bookings];
 
     if (hasSearchFilter) {
-      filteredBookings = filteredBookings.filter((booking) =>
-        booking.services.join(" ").toLowerCase().includes(filterValue.toLowerCase()) ||
-        booking.location_name?.toLowerCase().includes(filterValue.toLowerCase())
+      filteredBookings = filteredBookings.filter(
+        (booking) =>
+          booking.services
+            .join(" ")
+            .toLowerCase()
+            .includes(filterValue.toLowerCase()) ||
+          booking.location_name
+            ?.toLowerCase()
+            .includes(filterValue.toLowerCase()),
       );
     }
-    if (statusFilter !== "all" && Array.from(statusFilter).length !== statusOptions.length) {
+    if (
+      statusFilter !== "all" &&
+      Array.from(statusFilter).length !== statusOptions.length
+    ) {
       filteredBookings = filteredBookings.filter((booking) =>
-        Array.from(statusFilter).includes(booking.status)
+        Array.from(statusFilter).includes(booking.status),
       );
     }
 
@@ -186,9 +213,11 @@ export default function BookingsPage() {
       const second = b[sortDescriptor.column as keyof Booking];
       let cmp = 0;
 
-      if (sortDescriptor.column === 'rowNumber') {
+      if (sortDescriptor.column === "rowNumber") {
         // For rowNumber, we want to sort based on the index in the original bookings array
-        cmp = bookings.findIndex(booking => booking.id === b.id) - bookings.findIndex(booking => booking.id === a.id);
+        cmp =
+          bookings.findIndex((booking) => booking.id === b.id) -
+          bookings.findIndex((booking) => booking.id === a.id);
       } else {
         cmp = first < second ? -1 : first > second ? 1 : 0;
       }
@@ -197,90 +226,108 @@ export default function BookingsPage() {
     });
   }, [sortDescriptor, items, bookings]);
 
-  const renderCell = React.useCallback((booking: Booking, columnKey: React.Key) => {
-    const cellValue = booking[columnKey as keyof Booking];
+  const renderCell = React.useCallback(
+    (booking: Booking, columnKey: React.Key) => {
+      const cellValue = booking[columnKey as keyof Booking];
 
-    switch (columnKey) {
-      case "rowNumber":
-        if (!booking || !booking.id || !Array.isArray(bookings)) {
-          console.error('Invalid booking or bookings array:', { booking, bookingsLength: bookings?.length });
-          return 'N/A';
-        }
-        const index = bookings.findIndex(b => b.id === booking.id);
-        if (index === -1) {
-          console.error('Booking not found in bookings array:', booking);
-          return 'N/A';
-        }
-        return bookings.length - index;
-      case "created_at":
-      case "planned_at":
-        return formatDate(cellValue as string);
-      case "services":
-        return (cellValue as string[]).join(", ");
-      case "price":
-        return `${formatPrice(cellValue as number)} FCFA`;  // Add FCFA suffix here
-      case "status":
-        return (
-          <Chip className="capitalize" color={statusColorMap[booking.status]} size="sm" variant="flat">
-            {cellValue as string}
-          </Chip>
-        );
-      case "assigned_to":
-        return (
-          <AvatarGroup isBordered max={3}>
-            {(Array.isArray(cellValue) ? cellValue : []).map((member, index) => (
-              typeof member === 'object' && member !== null ? (
-                <Avatar 
-                  key={index}
-                  name={member.name}
-                  src={`https://i.pravatar.cc/150?u=${member.id}`} // Using a placeholder avatar service
-                  size="sm"
-                />
-              ) : null
-            ))}
-          </AvatarGroup>
-        );
-      case "client_phone":
-        return (
-          <Dropdown>
-            <DropdownTrigger>
-              <Button variant="bordered" size="md">
-                {cellValue as string}
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="Phone Actions">
-              <DropdownItem key="call">Call</DropdownItem>
-              <DropdownItem key="whatsapp">WhatsApp</DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
-        );
-      case "actions":
-        return (
-          <div className="relative flex justify-end items-center gap-2">
+      switch (columnKey) {
+        case "rowNumber":
+          if (!booking || !booking.id || !Array.isArray(bookings)) {
+            console.error("Invalid booking or bookings array:", {
+              booking,
+              bookingsLength: bookings?.length,
+            });
+
+            return "N/A";
+          }
+          const index = bookings.findIndex((b) => b.id === booking.id);
+
+          if (index === -1) {
+            console.error("Booking not found in bookings array:", booking);
+
+            return "N/A";
+          }
+
+          return bookings.length - index;
+        case "created_at":
+        case "planned_at":
+          return formatDate(cellValue as string);
+        case "services":
+          return (cellValue as string[]).join(", ");
+        case "price":
+          return `${formatPrice(cellValue as number)} FCFA`; // Add FCFA suffix here
+        case "status":
+          return (
+            <Chip
+              className="capitalize"
+              color={statusColorMap[booking.status]}
+              size="sm"
+              variant="flat"
+            >
+              {cellValue as string}
+            </Chip>
+          );
+        case "assigned_to":
+          return (
+            <AvatarGroup isBordered max={3}>
+              {(Array.isArray(cellValue) ? cellValue : []).map(
+                (member, index) =>
+                  typeof member === "object" && member !== null ? (
+                    <Avatar
+                      key={index}
+                      name={member.name}
+                      size="sm"
+                      src={`https://i.pravatar.cc/150?u=${member.id}`} // Using a placeholder avatar service
+                    />
+                  ) : null,
+              )}
+            </AvatarGroup>
+          );
+        case "client_phone":
+          return (
             <Dropdown>
               <DropdownTrigger>
-                <Button isIconOnly size="sm" variant="light">
-                  <VerticalDotsIcon className="text-default-300" />
+                <Button size="md" variant="bordered">
+                  {cellValue as string}
                 </Button>
               </DropdownTrigger>
-              <DropdownMenu>
-                <DropdownItem onPress={() => router.push(`/bookings/${booking.id}`)}>
-                  View
-                </DropdownItem>
-                <DropdownItem>Edit</DropdownItem>
-                <DropdownItem>Delete</DropdownItem>
+              <DropdownMenu aria-label="Phone Actions">
+                <DropdownItem key="call">Call</DropdownItem>
+                <DropdownItem key="whatsapp">WhatsApp</DropdownItem>
               </DropdownMenu>
             </Dropdown>
-          </div>
-        );
-      case "address":
-        return cellValue as string;
-      case "location":
-        return booking.location_name || 'Unknown';
-      default:
-        return cellValue as React.ReactNode;
-    }
-  }, [bookings]);
+          );
+        case "actions":
+          return (
+            <div className="relative flex justify-end items-center gap-2">
+              <Dropdown>
+                <DropdownTrigger>
+                  <Button isIconOnly size="sm" variant="light">
+                    <VerticalDotsIcon className="text-default-300" />
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu>
+                  <DropdownItem
+                    onPress={() => router.push(`/bookings/${booking.id}`)}
+                  >
+                    View
+                  </DropdownItem>
+                  <DropdownItem>Edit</DropdownItem>
+                  <DropdownItem>Delete</DropdownItem>
+                </DropdownMenu>
+              </Dropdown>
+            </div>
+          );
+        case "address":
+          return cellValue as string;
+        case "location":
+          return booking.location_name || "Unknown";
+        default:
+          return cellValue as React.ReactNode;
+      }
+    },
+    [bookings],
+  );
 
   const onNextPage = React.useCallback(() => {
     if (page < pages) {
@@ -294,10 +341,13 @@ export default function BookingsPage() {
     }
   }, [page]);
 
-  const onRowsPerPageChange = React.useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
-    setRowsPerPage(Number(e.target.value));
-    setPage(1);
-  }, []);
+  const onRowsPerPageChange = React.useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      setRowsPerPage(Number(e.target.value));
+      setPage(1);
+    },
+    [],
+  );
 
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
@@ -308,10 +358,10 @@ export default function BookingsPage() {
     }
   }, []);
 
-  const onClear = React.useCallback(()=>{
-    setFilterValue("")
-    setPage(1)
-  },[])
+  const onClear = React.useCallback(() => {
+    setFilterValue("");
+    setPage(1);
+  }, []);
 
   const topContent = React.useMemo(() => {
     return (
@@ -329,7 +379,10 @@ export default function BookingsPage() {
           <div className="flex gap-3">
             <Dropdown>
               <DropdownTrigger className="hidden sm:flex">
-                <Button endContent={<ChevronDownIcon className="text-small" />} variant="flat">
+                <Button
+                  endContent={<ChevronDownIcon className="text-small" />}
+                  variant="flat"
+                >
                   Status
                 </Button>
               </DropdownTrigger>
@@ -350,7 +403,10 @@ export default function BookingsPage() {
             </Dropdown>
             <Dropdown>
               <DropdownTrigger className="hidden sm:flex">
-                <Button endContent={<ChevronDownIcon className="text-small" />} variant="flat">
+                <Button
+                  endContent={<ChevronDownIcon className="text-small" />}
+                  variant="flat"
+                >
                   Columns
                 </Button>
               </DropdownTrigger>
@@ -369,19 +425,25 @@ export default function BookingsPage() {
                 ))}
               </DropdownMenu>
             </Dropdown>
-            <Button color="primary" endContent={<PlusIcon />} onPress={() => setIsModalOpen(true)}>
+            <Button
+              color="primary"
+              endContent={<PlusIcon />}
+              onPress={() => setIsModalOpen(true)}
+            >
               Add New
             </Button>
           </div>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-default-400 text-small">Total {bookings.length} bookings</span>
+          <span className="text-default-400 text-small">
+            Total {bookings.length} bookings
+          </span>
           <label className="flex items-center text-default-400 text-small">
             Rows per page:
             <select
               className="bg-transparent outline-none text-default-400 text-small"
-              onChange={onRowsPerPageChange}
               value={rowsPerPage}
+              onChange={onRowsPerPageChange}
             >
               <option value="5">5</option>
               <option value="10">10</option>
@@ -415,10 +477,20 @@ export default function BookingsPage() {
           onChange={setPage}
         />
         <div className="hidden sm:flex w-[30%] justify-end gap-2">
-          <Button isDisabled={pages === 1} size="sm" variant="flat" onPress={onPreviousPage}>
+          <Button
+            isDisabled={pages === 1}
+            size="sm"
+            variant="flat"
+            onPress={onPreviousPage}
+          >
             Previous
           </Button>
-          <Button isDisabled={pages === 1} size="sm" variant="flat" onPress={onNextPage}>
+          <Button
+            isDisabled={pages === 1}
+            size="sm"
+            variant="flat"
+            onPress={onNextPage}
+          >
             Next
           </Button>
         </div>
@@ -433,7 +505,7 @@ export default function BookingsPage() {
 
   // Add this logging somewhere in your component, perhaps in a useEffect
   useEffect(() => {
-    console.log('Bookings state:', bookings);
+    console.log("Bookings state:", bookings);
   }, [bookings]);
 
   return (
@@ -444,8 +516,8 @@ export default function BookingsPage() {
         <p>Loading bookings...</p>
       ) : (
         <Table
-          aria-label="Example table with custom cells, pagination and sorting"
           isHeaderSticky
+          aria-label="Example table with custom cells, pagination and sorting"
           bottomContent={bottomContent}
           bottomContentPlacement="outside"
           classNames={{
@@ -461,7 +533,13 @@ export default function BookingsPage() {
             {(column) => (
               <TableColumn
                 key={column.uid}
-                align={column.uid === "actions" ? "center" : column.uid === "rowNumber" ? "center" : "start"}
+                align={
+                  column.uid === "actions"
+                    ? "center"
+                    : column.uid === "rowNumber"
+                      ? "center"
+                      : "start"
+                }
                 allowsSorting={column.sortable}
               >
                 {column.name}
@@ -470,32 +548,32 @@ export default function BookingsPage() {
           </TableHeader>
           <TableBody emptyContent={"No bookings found"} items={sortedItems}>
             {(item) => (
-              <TableRow 
-                key={item.id} 
+              <TableRow
+                key={item.id}
                 className="cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
                 onClick={() => router.push(`/bookings/${item.id}`)}
               >
-                {(columnKey) => <TableCell>{renderCell(item, columnKey)}</TableCell>}
+                {(columnKey) => (
+                  <TableCell>{renderCell(item, columnKey)}</TableCell>
+                )}
               </TableRow>
             )}
           </TableBody>
         </Table>
       )}
 
-      <Modal 
-        size="3xl" 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
+      <Modal
         isDismissable={false}
+        isOpen={isModalOpen}
+        size="3xl"
+        onClose={() => setIsModalOpen(false)}
       >
         <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            New Booking
-          </ModalHeader>
+          <ModalHeader className="flex flex-col gap-1">New Booking</ModalHeader>
           <ModalBody>
-            <NewBookingForm 
-              onClose={() => setIsModalOpen(false)} 
+            <NewBookingForm
               onBookingCreated={handleBookingCreated}
+              onClose={() => setIsModalOpen(false)}
             />
           </ModalBody>
         </ModalContent>

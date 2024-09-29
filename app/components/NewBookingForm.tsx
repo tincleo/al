@@ -1,8 +1,19 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { Button, Autocomplete, AutocompleteItem, Input, Select, SelectItem, Switch, Textarea } from "@nextui-org/react";
-import { CustomCheckbox } from './CustomCheckbox';
+import {
+  Button,
+  Autocomplete,
+  AutocompleteItem,
+  Input,
+  Select,
+  SelectItem,
+  Switch,
+  Textarea,
+} from "@nextui-org/react";
+import toast from "react-hot-toast";
+
 import { supabase } from "@/lib/supabaseClient";
-import toast from 'react-hot-toast';
+
+import { CustomCheckbox } from "./CustomCheckbox";
 
 const SERVICES = [
   { name: "Couches", value: "couches" },
@@ -43,16 +54,23 @@ interface NewBookingFormProps {
   isEditing?: boolean;
 }
 
-export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditing = false }: NewBookingFormProps) {
+export function NewBookingForm({
+  onClose,
+  onBookingCreated,
+  initialData,
+  isEditing = false,
+}: NewBookingFormProps) {
   const [formData, setFormData] = useState({
-    services: initialData?.services || [] as string[],
+    services: initialData?.services || ([] as string[]),
     location: initialData?.location || "",
     address: initialData?.address || "",
     phone: initialData?.client_phone || "",
     price: initialData?.price?.toString() || "",
-    plannedFor: initialData?.planned_at ? new Date(initialData.planned_at).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+    plannedFor: initialData?.planned_at
+      ? new Date(initialData.planned_at).toISOString().slice(0, 16)
+      : new Date().toISOString().slice(0, 16),
     status: initialData?.status || "scheduled",
-    isPriority: initialData?.priority || false,  // This line ensures the priority is prefilled
+    isPriority: initialData?.priority || false, // This line ensures the priority is prefilled
     moreInfo: initialData?.more_info || "",
   });
 
@@ -65,45 +83,48 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
 
   const fetchLocations = async () => {
     const { data, error } = await supabase
-      .from('locations')
-      .select('id, name')
-      .order('name');
+      .from("locations")
+      .select("id, name")
+      .order("name");
 
     if (error) {
-      console.error('Error fetching locations:', error);
-      toast.error('Failed to load locations');
+      console.error("Error fetching locations:", error);
+      toast.error("Failed to load locations");
     } else {
       setLocations(data || []);
     }
   };
 
-  const handleInputChange = useCallback((field: string, value: string | boolean) => {
-    if (field === 'phone') {
-      // Limit phone number to 9 digits
-      value = (value as string).slice(0, 9).replace(/\D/g, '');
-    }
-    setFormData(prev => ({ ...prev, [field]: value }));
-  }, []);
+  const handleInputChange = useCallback(
+    (field: string, value: string | boolean) => {
+      if (field === "phone") {
+        // Limit phone number to 9 digits
+        value = (value as string).slice(0, 9).replace(/\D/g, "");
+      }
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
 
   const toggleService = useCallback((service: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
       services: prev.services.includes(service)
-        ? prev.services.filter(s => s !== service)
-        : [...prev.services, service]
+        ? prev.services.filter((s) => s !== service)
+        : [...prev.services, service],
     }));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const newInvalidFields = new Set<string>();
-    
-    if (!formData.services.length) newInvalidFields.add('services');
-    if (!formData.location) newInvalidFields.add('location');
-    if (!formData.phone) newInvalidFields.add('phone');
-    if (!formData.price) newInvalidFields.add('price');
-    if (!formData.plannedFor) newInvalidFields.add('plannedFor');
+
+    if (!formData.services.length) newInvalidFields.add("services");
+    if (!formData.location) newInvalidFields.add("location");
+    if (!formData.phone) newInvalidFields.add("phone");
+    if (!formData.price) newInvalidFields.add("price");
+    if (!formData.plannedFor) newInvalidFields.add("plannedFor");
 
     // Remove address from validation as it's not mandatory
     // if (!formData.address) newInvalidFields.add('address');
@@ -125,31 +146,31 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
       client_phone: formData.phone,
       priority: formData.isPriority,
       more_info: formData.moreInfo || null,
-      state: initialData?.state || 'pending', // Preserve existing state or use 'pending' for new bookings
+      state: initialData?.state || "pending", // Preserve existing state or use 'pending' for new bookings
     };
 
     try {
       const { data, error } = await supabase
-        .from('bookings')
+        .from("bookings")
         .insert([bookingData])
         .select();
 
       if (error) {
-        console.error('Error creating booking:', error);
-        toast.error('Failed to create booking');
+        console.error("Error creating booking:", error);
+        toast.error("Failed to create booking");
       } else {
-        console.log('Booking created:', data);
-        toast.success('Booking created successfully');
+        console.log("Booking created:", data);
+        toast.success("Booking created successfully");
         onBookingCreated(data[0]);
       }
     } catch (error) {
-      console.error('Error creating booking:', error);
-      toast.error('Failed to create booking');
+      console.error("Error creating booking:", error);
+      toast.error("Failed to create booking");
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+    <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit}>
       <div>
         <label className="block text-small font-medium text-foreground pb-1.5">
           Cleaning service
@@ -158,9 +179,9 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
           {SERVICES.map((service) => (
             <CustomCheckbox
               key={service.value}
+              className={`transition-colors ${formData.services.includes(service.value) ? "bg-blue-500 text-white border-blue-500" : ""}`}
               isSelected={formData.services.includes(service.value)}
               onPress={() => toggleService(service.value)}
-              className={`transition-colors ${formData.services.includes(service.value) ? "bg-blue-500 text-white border-blue-500" : ""}`}
             >
               {service.name}
             </CustomCheckbox>
@@ -169,11 +190,13 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
       </div>
       <div className="grid grid-cols-2 gap-4">
         <Autocomplete
+          isRequired
+          isInvalid={invalidFields.has("location")}
           label="Location"
           placeholder="Select a location"
-          isRequired
-          onSelectionChange={(value) => handleInputChange('location', value as string)}
-          isInvalid={invalidFields.has('location')}
+          onSelectionChange={(value) =>
+            handleInputChange("location", value as string)
+          }
         >
           {locations.map((location) => (
             <AutocompleteItem key={location.id} value={location.id}>
@@ -185,48 +208,48 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
           label="Exact address"
           placeholder="Enter address"
           value={formData.address}
-          onValueChange={(value) => handleInputChange('address', value)}
+          onValueChange={(value) => handleInputChange("address", value)}
           // Remove isInvalid and isRequired props
         />
         <Input
+          isRequired
+          isInvalid={invalidFields.has("phone")}
           label="Phone"
+          maxLength={9}
           placeholder="699 88 77 66"
           type="tel"
-          isRequired
           value={formData.phone}
-          onValueChange={(value) => handleInputChange('phone', value)}
-          maxLength={9}
-          isInvalid={invalidFields.has('phone')}
+          onValueChange={(value) => handleInputChange("phone", value)}
         />
         <Input
+          isRequired
+          isInvalid={invalidFields.has("price")}
           label="Price"
           placeholder="20 000"
-          type="number"
-          isRequired
           startContent={
             <div className="pointer-events-none flex items-center">
               <span className="text-default-400 text-small">FCFA</span>
             </div>
           }
+          type="number"
           value={formData.price}
-          onValueChange={(value) => handleInputChange('price', value)}
-          isInvalid={invalidFields.has('price')}
+          onValueChange={(value) => handleInputChange("price", value)}
         />
         <Input
+          isRequired
+          isInvalid={invalidFields.has("plannedFor")}
           label="Planned for"
           placeholder="Select date and time"
           type="datetime-local"
-          isRequired
           value={formData.plannedFor}
-          onValueChange={(value) => handleInputChange('plannedFor', value)}
-          isInvalid={invalidFields.has('plannedFor')}
+          onValueChange={(value) => handleInputChange("plannedFor", value)}
         />
         <Select
+          isRequired
           label="Status"
           placeholder="Select status"
           selectedKeys={[formData.status]}
-          onChange={(e) => handleInputChange('status', e.target.value)}
-          isRequired
+          onChange={(e) => handleInputChange("status", e.target.value)}
         >
           {STATUS_OPTIONS.map((option) => (
             <SelectItem key={option.value} value={option.value}>
@@ -236,16 +259,16 @@ export function NewBookingForm({ onClose, onBookingCreated, initialData, isEditi
         </Select>
       </div>
       <Textarea
+        className="w-full"
         label="More info"
         placeholder="Enter additional details about the booking"
         value={formData.moreInfo}
-        onValueChange={(value) => handleInputChange('moreInfo', value)}
-        className="w-full"
+        onValueChange={(value) => handleInputChange("moreInfo", value)}
       />
       <div className="flex justify-between items-center">
         <Switch
           isSelected={formData.isPriority}
-          onValueChange={(value) => handleInputChange('isPriority', value)}
+          onValueChange={(value) => handleInputChange("isPriority", value)}
         >
           Priority booking
         </Switch>

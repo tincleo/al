@@ -1,7 +1,9 @@
 import React from "react";
-import {Button, ButtonProps} from "@nextui-org/react";
+import { Button, ButtonProps } from "@nextui-org/react";
 
-export const CustomCheckbox = (props: ButtonProps & { isSelected?: boolean }) => {
+export const CustomCheckbox = (
+  props: ButtonProps & { isSelected?: boolean },
+) => {
   return (
     <Button
       {...props}
@@ -10,9 +12,10 @@ export const CustomCheckbox = (props: ButtonProps & { isSelected?: boolean }) =>
         bg-transparent
         border
         border-solid
-        ${props.isSelected 
-          ? 'border-blue-500 text-white' 
-          : 'border-[#414142] text-[#A1A1AA]'
+        ${
+          props.isSelected
+            ? "border-blue-500 text-white"
+            : "border-[#414142] text-[#A1A1AA]"
         } 
         cursor-pointer 
         rounded-full 

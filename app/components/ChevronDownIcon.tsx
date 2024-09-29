@@ -1,6 +1,9 @@
 import React from "react";
 
-export const ChevronDownIcon = ({ strokeWidth = 1.5, ...props }: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
+export const ChevronDownIcon = ({
+  strokeWidth = 1.5,
+  ...props
+}: React.SVGProps<SVGSVGElement> & { strokeWidth?: number }) => (
   <svg
     aria-hidden="true"
     fill="none"
