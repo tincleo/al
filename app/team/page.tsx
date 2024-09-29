@@ -480,9 +480,18 @@ export default function TeamPage() {
     const previousBalance = selectedMember.current_balance;
     const newBalance = Math.round(previousBalance + finalChangeAmount);
 
+    // Update total_earned for Daily salary and Bonus
+    let newTotalEarned = selectedMember.total_earned;
+    if (balanceReason === "Daily salary" || balanceReason === "Bonus") {
+      newTotalEarned += changeAmount;
+    }
+
     const { error: updateError } = await supabase
       .from('team')
-      .update({ current_balance: newBalance })
+      .update({ 
+        current_balance: newBalance,
+        total_earned: newTotalEarned
+      })
       .eq('id', selectedMember.id);
 
     if (updateError) {
@@ -500,7 +509,7 @@ export default function TeamPage() {
         reason: balanceReason,
         previous_balance: previousBalance,
         new_balance: newBalance,
-        notes: balanceNote || null // Add this line
+        notes: balanceNote || null
       });
 
     if (historyError) {
@@ -509,7 +518,7 @@ export default function TeamPage() {
     } else {
       setTeamMembers(teamMembers.map(member => 
         member.id === selectedMember.id 
-          ? { ...member, current_balance: newBalance } 
+          ? { ...member, current_balance: newBalance, total_earned: newTotalEarned } 
           : member
       ));
       setIsBalanceModalOpen(false);

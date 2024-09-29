@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, Divider, Chip, Avatar, Button, Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Input, Radio, RadioGroup, Badge, Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Switch, Pagination, Select, SelectItem } from "@nextui-org/react";
 import { title } from "../../components/primitives";
 import { CalendarIcon, MapPinIcon, CurrencyDollarIcon, PhoneIcon, UserGroupIcon, InformationCircleIcon, TrashIcon, PencilIcon, CheckIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, WalletIcon, BriefcaseIcon, CreditCardIcon, PlusIcon, CameraIcon, ArrowUpIcon, ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, BanknotesIcon, BackspaceIcon, ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon as SolidChevronLeftIcon, ChevronRightIcon as SolidChevronRightIcon, ChevronDoubleLeftIcon, ChevronDoubleRightIcon } from '@heroicons/react/24/solid';
 import Link from 'next/link';
 import { supabase } from "@/lib/supabaseClient";
 import toast, { Toaster } from 'react-hot-toast';
@@ -77,10 +78,11 @@ export default function TeamMemberDetails() {
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const [isClearBalanceModalOpen, setIsClearBalanceModalOpen] = useState(false);
   const [balanceHistoryPage, setBalanceHistoryPage] = useState(1);
-  const balanceHistoryPerPage = 5; // Show 5 items per page
+  const balanceHistoryPerPage = 7; // Changed from 10 to 7
   const [balanceReason, setBalanceReason] = useState("");
   const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
   const [balanceNote, setBalanceNote] = useState("");
+  const [isBalanceUpdateLoading, setIsBalanceUpdateLoading] = useState(false);
 
   useEffect(() => {
     fetchMemberDetails();
@@ -154,56 +156,78 @@ export default function TeamMemberDetails() {
   const handleConfirmBalanceUpdate = async () => {
     if (!member) return;
 
-    const changeAmount = parseFloat(balanceChange);
-    if (isNaN(changeAmount) || changeAmount <= 0) {
-      setBalanceError("Please enter a valid positive number");
-      return;
-    }
+    setIsBalanceUpdateLoading(true);
 
-    if (!balanceReason) {
-      setBalanceError("Please select a reason");
-      return;
-    }
+    try {
+      const changeAmount = parseFloat(balanceChange);
+      if (isNaN(changeAmount) || changeAmount <= 0) {
+        setBalanceError("Please enter a valid positive number");
+        return;
+      }
 
-    let finalChangeAmount = balanceReason === "Deduction" ? -changeAmount : changeAmount;
+      if (!balanceReason) {
+        setBalanceError("Please select a reason");
+        return;
+      }
 
-    const previousBalance = member.current_balance;
-    const newBalance = Math.round(previousBalance + finalChangeAmount);
+      let finalChangeAmount = balanceReason === "Deduction" ? -changeAmount : changeAmount;
 
-    const { error: updateError } = await supabase
-      .from('team')
-      .update({ current_balance: newBalance })
-      .eq('id', memberId);
+      const previousBalance = member.current_balance;
+      const newBalance = Math.round(previousBalance + finalChangeAmount);
 
-    if (updateError) {
-      console.error('Error updating balance:', updateError);
+      // Update total_earned for Daily salary and Bonus
+      let newTotalEarned = member.total_earned;
+      if (balanceReason === "Daily salary" || balanceReason === "Bonus") {
+        newTotalEarned += changeAmount;
+      }
+
+      const { error: updateError } = await supabase
+        .from('team')
+        .update({ 
+          current_balance: newBalance,
+          total_earned: newTotalEarned
+        })
+        .eq('id', memberId);
+
+      if (updateError) {
+        console.error('Error updating balance:', updateError);
+        toast.error('Failed to update balance. Please try again.');
+        return;
+      }
+
+      const { error: historyError } = await supabase
+        .from('balance_history')
+        .insert({
+          team_member_id: memberId,
+          amount: finalChangeAmount,
+          type: finalChangeAmount > 0 ? 'increase' : 'decrease',
+          reason: capitalizeFirstLetter(balanceReason),
+          previous_balance: previousBalance,
+          new_balance: newBalance,
+          notes: balanceNote || null
+        });
+
+      if (historyError) {
+        console.error('Error recording balance history:', historyError);
+        toast.error('Failed to record balance history. Please try again.');
+      } else {
+        setMember({ 
+          ...member, 
+          current_balance: newBalance,
+          total_earned: newTotalEarned
+        });
+        setIsBalanceModalOpen(false);
+        setBalanceError("");
+        setBalanceReason("");
+        setBalanceNote("");
+        toast.success(`Balance ${finalChangeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`);
+        fetchBalanceHistory();
+      }
+    } catch (error) {
+      console.error('Error updating balance:', error);
       toast.error('Failed to update balance. Please try again.');
-      return;
-    }
-
-    const { error: historyError } = await supabase
-      .from('balance_history')
-      .insert({
-        team_member_id: memberId,
-        amount: finalChangeAmount,
-        type: finalChangeAmount > 0 ? 'increase' : 'decrease',
-        reason: capitalizeFirstLetter(balanceReason),
-        previous_balance: previousBalance,
-        new_balance: newBalance,
-        notes: balanceNote || null
-      });
-
-    if (historyError) {
-      console.error('Error recording balance history:', historyError);
-      toast.error('Failed to record balance history. Please try again.');
-    } else {
-      setMember({ ...member, current_balance: newBalance });
-      setIsBalanceModalOpen(false);
-      setBalanceError("");
-      setBalanceReason("");
-      setBalanceNote("");
-      toast.success(`Balance ${finalChangeAmount > 0 ? 'increased' : 'decreased'} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`);
-      fetchBalanceHistory(); // Refresh balance history
+    } finally {
+      setIsBalanceUpdateLoading(false);
     }
   };
 
@@ -440,50 +464,43 @@ export default function TeamMemberDetails() {
 
   const renderPaginationButtons = () => {
     const buttons = [];
-    const maxVisibleButtons = 7; // Changed from 5 to 7
+    const maxVisibleButtons = 7;
+    const ellipsis = <span key="ellipsis" className="px-2">...</span>;
 
     if (totalPages <= maxVisibleButtons) {
+      // If we have 7 or fewer pages, show all page numbers
       for (let i = 1; i <= totalPages; i++) {
         buttons.push(
           <Button
             key={i}
             size="sm"
-            variant={balanceHistoryPage === i ? "solid" : "light"}
+            variant={balanceHistoryPage === i ? "solid" : "flat"}
             onPress={() => setBalanceHistoryPage(i)}
+            className={`w-8 h-8 min-w-8 ${balanceHistoryPage === i ? 'bg-blue-500 text-white' : ''}`}
           >
             {i}
           </Button>
         );
       }
     } else {
+      // Always show first page, last page, and 5 pages around the current page
       buttons.push(
         <Button
-          key="prev"
+          key={1}
           size="sm"
-          variant="light"
-          isDisabled={balanceHistoryPage === 1}
-          onPress={() => setBalanceHistoryPage(prev => Math.max(1, prev - 1))}
+          variant={balanceHistoryPage === 1 ? "solid" : "flat"}
+          onPress={() => setBalanceHistoryPage(1)}
+          className={`w-8 h-8 min-w-8 ${balanceHistoryPage === 1 ? 'bg-blue-500 text-white' : ''}`}
         >
-          <ChevronLeftIcon className="w-4 h-4" />
+          1
         </Button>
       );
 
-      let startPage = Math.max(1, balanceHistoryPage - 3);
-      let endPage = Math.min(totalPages, startPage + 6);
+      let startPage = Math.max(2, balanceHistoryPage - 2);
+      let endPage = Math.min(totalPages - 1, balanceHistoryPage + 2);
 
-      if (endPage - startPage < 6) {
-        startPage = Math.max(1, endPage - 6);
-      }
-
-      if (startPage > 1) {
-        buttons.push(
-          <Button key={1} size="sm" variant="light" onPress={() => setBalanceHistoryPage(1)}>
-            1
-          </Button>
-        );
-        if (startPage > 2) {
-          buttons.push(<span key="ellipsis1">...</span>);
-        }
+      if (startPage > 2) {
+        buttons.push(ellipsis);
       }
 
       for (let i = startPage; i <= endPage; i++) {
@@ -491,44 +508,57 @@ export default function TeamMemberDetails() {
           <Button
             key={i}
             size="sm"
-            variant={balanceHistoryPage === i ? "solid" : "light"}
+            variant={balanceHistoryPage === i ? "solid" : "flat"}
             onPress={() => setBalanceHistoryPage(i)}
+            className={`w-8 h-8 min-w-8 ${balanceHistoryPage === i ? 'bg-blue-500 text-white' : ''}`}
           >
             {i}
           </Button>
         );
       }
 
-      if (endPage < totalPages) {
-        if (endPage < totalPages - 1) {
-          buttons.push(<span key="ellipsis2">...</span>);
-        }
-        buttons.push(
-          <Button
-            key={totalPages}
-            size="sm"
-            variant="light"
-            onPress={() => setBalanceHistoryPage(totalPages)}
-          >
-            {totalPages}
-          </Button>
-        );
+      if (endPage < totalPages - 1) {
+        buttons.push(ellipsis);
       }
 
       buttons.push(
         <Button
-          key="next"
+          key={totalPages}
           size="sm"
-          variant="light"
-          isDisabled={balanceHistoryPage === totalPages}
-          onPress={() => setBalanceHistoryPage(prev => Math.min(totalPages, prev + 1))}
+          variant={balanceHistoryPage === totalPages ? "solid" : "flat"}
+          onPress={() => setBalanceHistoryPage(totalPages)}
+          className={`w-8 h-8 min-w-8 ${balanceHistoryPage === totalPages ? 'bg-blue-500 text-white' : ''}`}
         >
-          <ChevronRightIcon className="w-4 h-4" />
+          {totalPages}
         </Button>
       );
     }
 
-    return buttons;
+    return (
+      <div className="flex items-center gap-1">
+        <Button
+          size="sm"
+          variant="flat"
+          isIconOnly
+          isDisabled={balanceHistoryPage === 1}
+          onPress={() => setBalanceHistoryPage(1)}
+          className="w-8 h-8 min-w-8"
+        >
+          <ChevronDoubleLeftIcon className="w-4 h-4" />
+        </Button>
+        {buttons}
+        <Button
+          size="sm"
+          variant="flat"
+          isIconOnly
+          isDisabled={balanceHistoryPage === totalPages}
+          onPress={() => setBalanceHistoryPage(totalPages)}
+          className="w-8 h-8 min-w-8"
+        >
+          <ChevronDoubleRightIcon className="w-4 h-4" />
+        </Button>
+      </div>
+    );
   };
 
   if (!member) return <div>Loading...</div>;
@@ -815,7 +845,7 @@ export default function TeamMemberDetails() {
                 ))}
               </div>
               {totalPages > 1 && (
-                <div className="flex justify-center mt-4 gap-2">
+                <div className="flex justify-center mt-4">
                   {renderPaginationButtons()}
                 </div>
               )}
@@ -988,6 +1018,7 @@ export default function TeamMemberDetails() {
           handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
           handleClearBalance={handleClearBalance}
           currentBalance={member?.current_balance || 0}
+          isLoading={isBalanceUpdateLoading}
         />
 
         <Modal 

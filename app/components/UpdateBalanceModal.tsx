@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem, Textarea } from "@nextui-org/react";
+import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button, Input, Select, SelectItem, Textarea, Spinner } from "@nextui-org/react";
 import { TrashIcon } from '@heroicons/react/24/outline';
 
 interface UpdateBalanceModalProps {
@@ -16,6 +16,8 @@ interface UpdateBalanceModalProps {
   handleConfirmBalanceUpdate: () => void;
   handleClearBalance: () => Promise<void>;
   currentBalance: number;
+  isLoading: boolean;
+  isClearingBalance: boolean;
 }
 
 export function UpdateBalanceModal({
@@ -31,7 +33,9 @@ export function UpdateBalanceModal({
   setBalanceNote,
   handleConfirmBalanceUpdate,
   handleClearBalance,
-  currentBalance
+  currentBalance,
+  isLoading,
+  isClearingBalance
 }: UpdateBalanceModalProps) {
   useEffect(() => {
     if (isOpen && !balanceReason) {
@@ -52,12 +56,7 @@ export function UpdateBalanceModal({
             type="number"
             label="Amount:"
             value={balanceChange}
-            onChange={(e) => {
-              const value = e.target.value;
-              if (parseFloat(value) > 0) {
-                setBalanceChange(value);
-              }
-            }}
+            onValueChange={setBalanceChange}
             startContent={
               <div className="pointer-events-none flex items-center">
                 <span className="text-default-400 text-small">FCFA</span>
@@ -86,28 +85,30 @@ export function UpdateBalanceModal({
             label="Note (optional)"
             placeholder="Enter any additional information"
             value={balanceNote}
-            onChange={(e) => setBalanceNote(e.target.value)}
+            onValueChange={setBalanceNote}
           />
         </ModalBody>
         <ModalFooter className="flex justify-between">
           <Button 
             color="warning" 
             variant="flat" 
-            onPress={async () => {
-              await handleClearBalance();
-              onClose();
-            }}
-            isDisabled={currentBalance === 0}
-            startContent={<TrashIcon className="w-4 h-4" />}
+            onPress={handleClearBalance}
+            isDisabled={currentBalance === 0 || isLoading || isClearingBalance}
+            startContent={isClearingBalance ? <Spinner size="sm" /> : <TrashIcon className="w-4 h-4" />}
           >
             Clear Balance
           </Button>
           <div>
-            <Button color="danger" variant="light" onPress={onClose}>
+            <Button color="danger" variant="light" onPress={onClose} isDisabled={isLoading || isClearingBalance}>
               Cancel
             </Button>
-            <Button color="primary" onPress={handleConfirmBalanceUpdate}>
-              Confirm
+            <Button 
+              color="primary" 
+              onPress={handleConfirmBalanceUpdate}
+              isLoading={isLoading}
+              startContent={isLoading ? <Spinner size="sm" /> : null}
+            >
+              Submit
             </Button>
           </div>
         </ModalFooter>
