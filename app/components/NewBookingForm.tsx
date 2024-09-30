@@ -27,18 +27,18 @@ interface Location {
   name: string;
 }
 
-const LOCATIONS = [
-  { label: "Bastos", value: "Bastos" },
-  { label: "Mvan", value: "Mvan" },
-  { label: "Nsimeyong", value: "Nsimeyong" },
-  { label: "Biyem-Assi", value: "Biyem-Assi" },
-  { label: "Mimboman", value: "Mimboman" },
-  { label: "Ngousso", value: "Ngousso" },
-  { label: "Emana", value: "Emana" },
-  { label: "Nkolbisson", value: "Nkolbisson" },
-  { label: "Ekounou", value: "Ekounou" },
-  { label: "Essos", value: "Essos" },
-] as const;
+// const LOCATIONS = [
+//   { label: "Bastos", value: "Bastos" },
+//   { label: "Mvan", value: "Mvan" },
+//   { label: "Nsimeyong", value: "Nsimeyong" },
+//   { label: "Biyem-Assi", value: "Biyem-Assi" },
+//   { label: "Mimboman", value: "Mimboman" },
+//   { label: "Ngousso", value: "Ngousso" },
+//   { label: "Emana", value: "Emana" },
+//   { label: "Nkolbisson", value: "Nkolbisson" },
+//   { label: "Ekounou", value: "Ekounou" },
+//   { label: "Essos", value: "Essos" },
+// ] as const;
 
 const STATUS_OPTIONS = [
   { label: "Scheduled", value: "scheduled" },
@@ -88,8 +88,7 @@ export function NewBookingForm({
       .order("name");
 
     if (error) {
-      console.error("Error fetching locations:", error);
-      toast.error("Failed to load locations");
+      toast.error("Error fetching locations:", error);
     } else {
       setLocations(data || []);
     }
@@ -156,15 +155,12 @@ export function NewBookingForm({
         .select();
 
       if (error) {
-        console.error("Error creating booking:", error);
         toast.error("Failed to create booking");
       } else {
-        console.log("Booking created:", data);
         toast.success("Booking created successfully");
         onBookingCreated(data[0]);
       }
     } catch (error) {
-      console.error("Error creating booking:", error);
       toast.error("Failed to create booking");
     }
   };
@@ -172,7 +168,10 @@ export function NewBookingForm({
   return (
     <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit}>
       <div>
-        <label className="block text-small font-medium text-foreground pb-1.5">
+        <label
+          className="block text-small font-medium text-foreground pb-1.5"
+          htmlFor="cleaning-service"
+        >
           Cleaning service
         </label>
         <div className="flex flex-wrap gap-2">

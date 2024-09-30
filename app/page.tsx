@@ -151,29 +151,15 @@ const formatFCFA = (value: number) => {
 
 export default function Home() {
   const [selectedTab, setSelectedTab] = useState<string>("today");
-  const [dateRange, setDateRange] = useState<{ start: Date; end: Date }>({
-    start: new Date(new Date().setMonth(new Date().getMonth() - 3)),
-    end: new Date(),
-  });
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(
+    [],
+  );
   const [activitiesPage, setActivitiesPage] = useState(1);
   const [totalActivities, setTotalActivities] = useState(0);
-  const [todayForecast, setTodayForecast] = useState({
-    bookings: 0,
-    revenue: 0,
-    teamMembers: 0,
-    topService: "",
-    completionRate: 0,
-  });
 
   const handleTabChange = (key: React.Key) => {
     setSelectedTab(key.toString());
     // Here you would fetch and update data based on the selected tab
-  };
-
-  const handleDateRangeChange = (start: Date, end: Date) => {
-    setDateRange({ start, end });
-    // Here you would fetch and update data based on the selected date range
   };
 
   useEffect(() => {
@@ -232,13 +218,13 @@ export default function Home() {
 
   const fetchTodayForecast = async () => {
     // This is a mock implementation. Replace with actual API call.
-    setTodayForecast({
-      bookings: 5,
-      revenue: 250000,
-      teamMembers: 3,
-      topService: "Carpet Cleaning",
-      completionRate: 92,
-    });
+    // setTodayForecast({
+    //   bookings: 5,
+    //   revenue: 250000,
+    //   teamMembers: 3,
+    //   topService: "Carpet Cleaning",
+    //   completionRate: 92,
+    // });
   };
 
   return (
@@ -247,10 +233,10 @@ export default function Home() {
         <div>
           <h2 className={title({ size: "sm" })}>Dashboard Overview</h2>
           <h3 className={subtitle({ class: "mt-1" })}>
-            Here's a summary of your business
+            Here&apos;s a summary of your business
           </h3>
         </div>
-        <DateRangePicker onChange={handleDateRangeChange} />
+        <DateRangePicker />
       </div>
 
       <Tabs
@@ -435,7 +421,7 @@ export default function Home() {
         </Card>
 
         <Card className="col-span-1">
-          <CardHeader>Today's Bookings</CardHeader>
+          <CardHeader>Today&apos;s Bookings</CardHeader>
           <CardBody>
             <Table aria-label="Today's bookings">
               <TableHeader>

@@ -82,6 +82,17 @@ type TeamMember = {
   id_card_file: string | null;
 };
 
+type BalanceHistoryEntry = {
+  id: string;
+  amount: number;
+  type: string;
+  reason: string;
+  previous_balance: number;
+  new_balance: number;
+  created_at: string;
+  notes: string;
+};
+
 const formatCurrency = (amount: number | null | undefined): string => {
   if (amount == null) return "0 FCFA";
 
@@ -121,7 +132,7 @@ const capitalizeFirstLetter = (string: string) => {
   return string.charAt(0).toUpperCase() + string.slice(1);
 };
 
-export default function TeamMemberDetails() {
+const TeamMemberDetails = () => {
   const params = useParams();
   const router = useRouter();
   const memberId = (params?.id as string) ?? "";
@@ -144,9 +155,12 @@ export default function TeamMemberDetails() {
   const [balanceHistoryPage, setBalanceHistoryPage] = useState(1);
   const balanceHistoryPerPage = 7; // Changed from 10 to 7
   const [balanceReason, setBalanceReason] = useState("");
-  const [balanceHistory, setBalanceHistory] = useState<any[]>([]);
+  const [balanceHistory, setBalanceHistory] = useState<BalanceHistoryEntry[]>(
+    [],
+  );
   const [balanceNote, setBalanceNote] = useState("");
   const [isBalanceUpdateLoading, setIsBalanceUpdateLoading] = useState(false);
+  const [isClearingBalance, setIsClearingBalance] = useState(false);
 
   useEffect(() => {
     fetchMemberDetails();
@@ -166,8 +180,8 @@ export default function TeamMemberDetails() {
       .single();
 
     if (error) {
-      console.error("Error fetching member details:", error);
-    } else {
+      toast.error(`Error fetching member details: ${error.message}`);
+    } else if (data) {
       const memberWithAvatarUrl = {
         ...data,
         avatar: data.avatar ? getAvatarUrl(data.avatar) : null,
@@ -188,7 +202,7 @@ export default function TeamMemberDetails() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching balance history:", error);
+      toast.error(`Error fetching balance history: ${error.message}`);
     } else {
       setBalanceHistory(data);
     }
@@ -199,16 +213,11 @@ export default function TeamMemberDetails() {
     const { error } = await supabase.from("team").delete().eq("id", memberId);
 
     if (error) {
-      console.error("Error deleting team member:", error);
-      toast.error("Failed to delete team member. Please try again.");
+      toast.error(`Error deleting team member: ${error.message}`);
     } else {
       toast.success("Team member deleted successfully!");
       router.push("/team");
     }
-  };
-
-  const handleMarkAsCompleted = () => {
-    setIsBalanceModalOpen(true);
   };
 
   useEffect(() => {
@@ -243,58 +252,41 @@ export default function TeamMemberDetails() {
       const previousBalance = member.current_balance;
       const newBalance = Math.round(previousBalance + finalChangeAmount);
 
-      // Update total_earned for Daily salary and Bonus
       let newTotalEarned = member.total_earned;
 
       if (balanceReason === "Daily salary" || balanceReason === "Bonus") {
         newTotalEarned += changeAmount;
       }
 
-      const { error: updateError } = await supabase
-        .from("team")
-        .update({
-          current_balance: newBalance,
-          total_earned: newTotalEarned,
-        })
-        .eq("id", memberId);
+      const { data, error } = await supabase.rpc("update_balance_and_history", {
+        p_member_id: member.id,
+        p_new_balance: newBalance,
+        p_new_total_earned: newTotalEarned,
+        p_amount: finalChangeAmount,
+        p_reason: balanceReason,
+        p_previous_balance: previousBalance,
+        p_notes: balanceNote || null,
+      });
 
-      if (updateError) {
-        console.error("Error updating balance:", updateError);
-        toast.error("Failed to update balance. Please try again.");
-
-        return;
+      if (error) {
+        throw error;
       }
 
-      const { error: historyError } = await supabase
-        .from("balance_history")
-        .insert({
-          team_member_id: memberId,
-          amount: finalChangeAmount,
-          type: finalChangeAmount > 0 ? "increase" : "decrease",
-          reason: capitalizeFirstLetter(balanceReason),
-          previous_balance: previousBalance,
-          new_balance: newBalance,
-          notes: balanceNote || null,
-        });
+      setMember({
+        ...member,
+        current_balance: newBalance,
+        total_earned: newTotalEarned,
+      });
 
-      if (historyError) {
-        console.error("Error recording balance history:", historyError);
-        toast.error("Failed to record balance history. Please try again.");
-      } else {
-        setMember({
-          ...member,
-          current_balance: newBalance,
-          total_earned: newTotalEarned,
-        });
-        setIsBalanceModalOpen(false);
-        setBalanceError("");
-        setBalanceReason("");
-        setBalanceNote("");
-        toast.success(
-          `Balance ${finalChangeAmount > 0 ? "increased" : "decreased"} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`,
-        );
-        fetchBalanceHistory();
-      }
+      setIsBalanceModalOpen(false);
+      setBalanceError("");
+      setBalanceReason("");
+      setBalanceNote("");
+      toast.success(
+        `Balance ${finalChangeAmount > 0 ? "increased" : "decreased"} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`,
+      );
+
+      fetchBalanceHistory();
     } catch (error) {
       console.error("Error updating balance:", error);
       toast.error("Failed to update balance. Please try again.");
@@ -339,8 +331,7 @@ export default function TeamMemberDetails() {
       .eq("id", memberId);
 
     if (error) {
-      console.error("Error updating member:", error);
-      toast.error("Failed to update member details. Please try again.");
+      toast.error(`Failed to update member details: ${error.message}`);
     } else {
       setMember(editedMember);
       setIsEditModalOpen(false);
@@ -363,7 +354,7 @@ export default function TeamMemberDetails() {
 
         try {
           // Check if the bucket exists and create it if it doesn't
-          const { data: bucketData, error: bucketError } =
+          const { error: bucketError } =
             await supabase.storage.getBucket("alpha");
 
           if (
@@ -371,39 +362,41 @@ export default function TeamMemberDetails() {
             "statusCode" in bucketError &&
             bucketError.statusCode === "404"
           ) {
-            const { data: createBucketData, error: createBucketError } =
+            const { error: createBucketError } =
               await supabase.storage.createBucket("alpha", { public: false });
 
             if (createBucketError) {
               throw new Error(
-                "Error creating bucket: " + createBucketError.message,
+                `Error creating bucket: ${createBucketError.message}`,
               );
             }
           } else if (bucketError) {
-            throw new Error("Error checking bucket: " + bucketError.message);
+            throw new Error(`Error checking bucket: ${bucketError.message}`);
           }
 
           // Upload the file
-          const { data, error } = await supabase.storage
+          const { error: uploadError } = await supabase.storage
             .from("alpha")
             .upload(fileName, file, {
               cacheControl: "3600",
               upsert: false,
             });
 
-          if (error) {
-            throw new Error(`Error uploading ${fileType}: ` + error.message);
+          if (uploadError) {
+            throw new Error(
+              `Error uploading ${fileType}: ${uploadError.message}`,
+            );
           }
 
           // Update the database
-          const { data: updateData, error: updateError } = await supabase
+          const { error: updateError } = await supabase
             .from("team")
             .update({ [`${fileType}_file`]: fileName })
             .eq("id", memberId);
 
           if (updateError) {
             throw new Error(
-              `Error updating ${fileType} in database: ` + updateError.message,
+              `Error updating ${fileType} in database: ${updateError.message}`,
             );
           }
 
@@ -414,7 +407,6 @@ export default function TeamMemberDetails() {
             `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} uploaded successfully!`,
           );
         } catch (error) {
-          console.error(error);
           toast.error(
             error instanceof Error
               ? error.message
@@ -435,9 +427,8 @@ export default function TeamMemberDetails() {
         .download(member[`${fileType}_file`] as string);
 
       if (error) {
-        console.error(`Error downloading ${fileType}:`, error);
         toast.error(`Error downloading ${fileType}`);
-      } else {
+      } else if (data) {
         const url = URL.createObjectURL(data);
         const a = document.createElement("a");
 
@@ -481,18 +472,18 @@ export default function TeamMemberDetails() {
       const fileName = `avatar_${memberId}_${Date.now()}.${file.name.split(".").pop()}`;
 
       try {
-        const { data, error } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("alpha")
           .upload(fileName, file, {
             cacheControl: "3600",
             upsert: false,
           });
 
-        if (error) {
-          throw new Error(`Error uploading avatar: ${error.message}`);
+        if (uploadError) {
+          throw new Error(`Error uploading avatar: ${uploadError.message}`);
         }
 
-        const { data: updateData, error: updateError } = await supabase
+        const { error: updateError } = await supabase
           .from("team")
           .update({ avatar: fileName })
           .eq("id", memberId);
@@ -508,7 +499,6 @@ export default function TeamMemberDetails() {
         setMember({ ...member, avatar: avatarUrl });
         toast.success("Avatar updated successfully!");
       } catch (error) {
-        console.error(error);
         toast.error(
           error instanceof Error
             ? error.message
@@ -521,55 +511,58 @@ export default function TeamMemberDetails() {
   };
 
   const handleClearBalance = async () => {
-    if (!member || member.current_balance === 0) {
-      setIsBalanceModalOpen(false);
+    if (!member || member.current_balance === 0 || isClearingBalance) return;
 
-      return;
-    }
+    setIsClearingBalance(true);
 
-    const previousBalance = member.current_balance;
-    const changeAmount = -previousBalance;
+    try {
+      const previousBalance = member.current_balance;
+      const changeAmount = -previousBalance;
 
-    const { error: updateError } = await supabase
-      .from("team")
-      .update({
-        current_balance: 0,
-        total_earned: member.total_earned + previousBalance,
-      })
-      .eq("id", memberId);
+      const { error: updateError } = await supabase
+        .from("team")
+        .update({
+          current_balance: 0,
+          total_earned: member.total_earned + previousBalance,
+        })
+        .eq("id", memberId);
 
-    if (updateError) {
-      console.error("Error clearing balance:", updateError);
-      toast.error("Failed to clear balance. Please try again.");
+      if (updateError) {
+        throw updateError;
+      }
 
-      return;
-    }
+      const { error: historyError } = await supabase
+        .from("balance_history")
+        .insert({
+          team_member_id: memberId,
+          amount: changeAmount,
+          type: "decrease",
+          reason: "Balance cleared",
+          previous_balance: previousBalance,
+          new_balance: 0,
+        });
 
-    const { error: historyError } = await supabase
-      .from("balance_history")
-      .insert({
-        team_member_id: memberId,
-        amount: changeAmount,
-        type: "decrease",
-        reason: "Balance cleared",
-        previous_balance: previousBalance,
-        new_balance: 0,
-      });
+      if (historyError) {
+        throw historyError;
+      }
 
-    if (historyError) {
-      console.error("Error recording balance history:", historyError);
-      toast.error("Failed to record balance history. Please try again.");
-    } else {
       setMember({
         ...member,
         current_balance: 0,
         total_earned: member.total_earned + previousBalance,
       });
+
       setIsBalanceModalOpen(false);
       toast.success(
         `Balance cleared successfully. ${previousBalance.toLocaleString()} FCFA paid out.`,
       );
-      fetchBalanceHistory(); // Refresh balance history
+
+      fetchBalanceHistory();
+    } catch (error) {
+      console.error("Error clearing balance:", error);
+      toast.error("Failed to clear balance. Please try again.");
+    } finally {
+      setIsClearingBalance(false);
     }
   };
 
@@ -686,115 +679,131 @@ export default function TeamMemberDetails() {
   if (!member) return <div>Loading...</div>;
 
   return (
-    <>
-      <div className="space-y-6">
-        <Toaster position="top-center" reverseOrder={false} />
+    <div className="space-y-6">
+      <Toaster position="top-center" reverseOrder={false} />
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="border border-gray-200 dark:border-gray-700">
-            <CardBody className="flex flex-row items-center justify-between">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border border-gray-200 dark:border-gray-700">
+          <CardBody className="flex flex-row items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <WalletIcon className="w-6 h-6 text-primary" />
+              <div>
+                <p className="text-xs text-default-500">Current Balance</p>
+                <p className="text-base font-semibold">
+                  {formatCurrency(member.current_balance)}
+                </p>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              <Button
+                isIconOnly
+                className="bg-default-100 hover:bg-blue-500 hover:text-white transition-colors"
+                size="sm"
+                variant="flat"
+                onPress={() => setIsBalanceModalOpen(true)}
+              >
+                <PencilIcon className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
+        <Card className="border border-gray-200 dark:border-gray-700">
+          <CardBody className="flex flex-row items-center space-x-4">
+            <CurrencyDollarIcon className="w-6 h-6 text-success" />
+            <div>
+              <p className="text-xs text-default-500">Total Earned</p>
+              <p className="text-base font-semibold">
+                {formatCurrency(member.total_earned)}
+              </p>
+            </div>
+          </CardBody>
+        </Card>
+        <Card className="border border-gray-200 dark:border-gray-700">
+          <CardBody className="flex flex-row items-center space-x-4">
+            <BriefcaseIcon className="w-6 h-6 text-warning" />
+            <div>
+              <p className="text-xs text-default-500">Jobs Executed</p>
+              <p className="text-base font-semibold">{member.jobs_executed}</p>
+            </div>
+          </CardBody>
+        </Card>
+        <Card className="border border-gray-200 dark:border-gray-700">
+          <CardBody className="flex flex-row items-center space-x-4">
+            <CreditCardIcon className="w-6 h-6 text-danger" />
+            <div>
+              <p className="text-xs text-default-500">Generated</p>
+              <p className="text-base font-semibold">
+                {formatCurrency(member.generated)}
+              </p>
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="p-4">
+          <CardHeader className="flex justify-between items-center">
+            <h2 className="text-lg font-semibold">{member.name}'s Info</h2>
+            <Chip color={member.status === "active" ? "success" : "danger"}>
+              {member.status}
+            </Chip>
+          </CardHeader>
+          <Divider />
+          <CardBody>
+            <div className="flex flex-col space-y-4">
               <div className="flex items-center space-x-4">
-                <WalletIcon className="w-6 h-6 text-primary" />
-                <div>
-                  <p className="text-xs text-default-500">Current Balance</p>
-                  <p className="text-base font-semibold">
-                    {formatCurrency(member.current_balance)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  isIconOnly
-                  className="bg-default-100 hover:bg-blue-500 hover:text-white transition-colors"
-                  size="sm"
-                  variant="flat"
-                  onPress={() => setIsBalanceModalOpen(true)}
-                >
-                  <PencilIcon className="w-4 h-4" />
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
-          <Card className="border border-gray-200 dark:border-gray-700">
-            <CardBody className="flex flex-row items-center space-x-4">
-              <CurrencyDollarIcon className="w-6 h-6 text-success" />
-              <div>
-                <p className="text-xs text-default-500">Total Earned</p>
-                <p className="text-base font-semibold">
-                  {formatCurrency(member.total_earned)}
-                </p>
-              </div>
-            </CardBody>
-          </Card>
-          <Card className="border border-gray-200 dark:border-gray-700">
-            <CardBody className="flex flex-row items-center space-x-4">
-              <BriefcaseIcon className="w-6 h-6 text-warning" />
-              <div>
-                <p className="text-xs text-default-500">Jobs Executed</p>
-                <p className="text-base font-semibold">
-                  {member.jobs_executed}
-                </p>
-              </div>
-            </CardBody>
-          </Card>
-          <Card className="border border-gray-200 dark:border-gray-700">
-            <CardBody className="flex flex-row items-center space-x-4">
-              <CreditCardIcon className="w-6 h-6 text-danger" />
-              <div>
-                <p className="text-xs text-default-500">Generated</p>
-                <p className="text-base font-semibold">
-                  {formatCurrency(member.generated)}
-                </p>
-              </div>
-            </CardBody>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="p-4">
-            <CardHeader className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">{member.name}'s Info</h2>
-              <Chip color={member.status === "active" ? "success" : "danger"}>
-                {member.status}
-              </Chip>
-            </CardHeader>
-            <Divider />
-            <CardBody>
-              <div className="flex flex-col space-y-4">
-                <div className="flex items-center space-x-4">
-                  <div className="relative group">
-                    <Avatar
-                      showFallback
-                      alt={`${member.name}'s avatar`}
-                      size="lg"
-                      src={member.avatar}
+                <div className="relative group">
+                  <Avatar
+                    showFallback
+                    alt={`${member.name}'s avatar`}
+                    size="lg"
+                    src={member.avatar}
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+                    <label className="cursor-pointer" htmlFor="avatar-upload">
+                      {isUpdatingAvatar ? (
+                        <Spinner color="white" size="sm" />
+                      ) : (
+                        <CameraIcon className="w-6 h-6 text-white" />
+                      )}
+                    </label>
+                    <input
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isUpdatingAvatar}
+                      id="avatar-upload"
+                      type="file"
+                      onChange={handleAvatarUpdate}
                     />
-                    <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                      <label className="cursor-pointer" htmlFor="avatar-upload">
-                        {isUpdatingAvatar ? (
-                          <Spinner color="white" size="sm" />
-                        ) : (
-                          <CameraIcon className="w-6 h-6 text-white" />
-                        )}
-                      </label>
-                      <input
-                        accept="image/*"
-                        className="hidden"
-                        disabled={isUpdatingAvatar}
-                        id="avatar-upload"
-                        type="file"
-                        onChange={handleAvatarUpdate}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="font-semibold">{member.name}</p>
-                    <p className="text-sm text-default-500">{member.email}</p>
                   </div>
                 </div>
-                <div className="flex space-x-4">
+                <div>
+                  <p className="font-semibold">{member.name}</p>
+                  <p className="text-sm text-default-500">{member.email}</p>
+                </div>
+              </div>
+              <div className="flex space-x-4">
+                <div>
+                  <p className="text-sm text-default-500">Phone 1</p>
+                  <Dropdown>
+                    <DropdownTrigger>
+                      <Button
+                        size="md"
+                        startContent={<PhoneIcon className="w-4 h-4" />}
+                        variant="bordered"
+                      >
+                        {member.phone1}
+                      </Button>
+                    </DropdownTrigger>
+                    <DropdownMenu aria-label="Phone Actions">
+                      <DropdownItem key="call">Call</DropdownItem>
+                      <DropdownItem key="whatsapp">WhatsApp</DropdownItem>
+                    </DropdownMenu>
+                  </Dropdown>
+                </div>
+                {member.phone2 && (
                   <div>
-                    <p className="text-sm text-default-500">Phone 1</p>
+                    <p className="text-sm text-default-500">Phone 2</p>
                     <Dropdown>
                       <DropdownTrigger>
                         <Button
@@ -802,7 +811,7 @@ export default function TeamMemberDetails() {
                           startContent={<PhoneIcon className="w-4 h-4" />}
                           variant="bordered"
                         >
-                          {member.phone1}
+                          {member.phone2}
                         </Button>
                       </DropdownTrigger>
                       <DropdownMenu aria-label="Phone Actions">
@@ -811,480 +820,455 @@ export default function TeamMemberDetails() {
                       </DropdownMenu>
                     </Dropdown>
                   </div>
-                  {member.phone2 && (
-                    <div>
-                      <p className="text-sm text-default-500">Phone 2</p>
-                      <Dropdown>
-                        <DropdownTrigger>
-                          <Button
-                            size="md"
-                            startContent={<PhoneIcon className="w-4 h-4" />}
-                            variant="bordered"
-                          >
-                            {member.phone2}
-                          </Button>
-                        </DropdownTrigger>
-                        <DropdownMenu aria-label="Phone Actions">
-                          <DropdownItem key="call">Call</DropdownItem>
-                          <DropdownItem key="whatsapp">WhatsApp</DropdownItem>
-                        </DropdownMenu>
-                      </Dropdown>
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm text-default-500">Address</p>
-                  <p>{member.address}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-default-500">Contract Start</p>
-                  <p>
-                    {new Date(member.contract_start).toLocaleDateString()}{" "}
-                    <span className="text-sm text-default-500">
-                      ({calculateTimeSinceContractStart(member.contract_start)})
-                    </span>
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-default-500">Salary</p>
-                  <p>{formatCurrency(member.salary)} / day</p>
-                </div>
-                <div className="flex space-x-4">
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button
-                        color="primary"
-                        isLoading={isUploading.contract}
-                        size="sm"
-                        startContent={
-                          isUploading.contract ? null : member?.contract_file ? (
-                            <CheckIcon className="w-4 h-4" />
-                          ) : (
-                            <ArrowUpTrayIcon className="w-4 h-4" />
-                          )
-                        }
-                        variant="flat"
-                      >
-                        {isUploading.contract ? "Uploading..." : "Contract"}
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu aria-label="Contract Actions">
-                      {member?.contract_file && (
-                        <DropdownItem
-                          key="download"
-                          startContent={
-                            <ArrowDownTrayIcon className="w-4 h-4" />
-                          }
-                          onPress={() => handleFileDownload("contract")}
-                        >
-                          Download
-                        </DropdownItem>
-                      )}
-                      <DropdownItem
-                        key="upload"
-                        startContent={<ArrowUpTrayIcon className="w-4 h-4" />}
-                        onPress={() => handleFileUpload("contract")}
-                      >
-                        {member?.contract_file ? "Replace" : "Upload"}
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                  <Dropdown>
-                    <DropdownTrigger>
-                      <Button
-                        color="secondary"
-                        isLoading={isUploading.id_card}
-                        size="sm"
-                        startContent={
-                          isUploading.id_card ? null : member?.id_card_file ? (
-                            <CheckIcon className="w-4 h-4" />
-                          ) : (
-                            <ArrowUpTrayIcon className="w-4 h-4" />
-                          )
-                        }
-                        variant="flat"
-                      >
-                        {isUploading.id_card ? "Uploading..." : "ID Card"}
-                      </Button>
-                    </DropdownTrigger>
-                    <DropdownMenu aria-label="ID Card Actions">
-                      {member?.id_card_file && (
-                        <DropdownItem
-                          key="download"
-                          startContent={
-                            <ArrowDownTrayIcon className="w-4 h-4" />
-                          }
-                          onPress={() => handleFileDownload("id_card")}
-                        >
-                          Download
-                        </DropdownItem>
-                      )}
-                      <DropdownItem
-                        key="upload"
-                        startContent={<ArrowUpTrayIcon className="w-4 h-4" />}
-                        onPress={() => handleFileUpload("id_card")}
-                      >
-                        {member?.id_card_file ? "Replace" : "Upload"}
-                      </DropdownItem>
-                    </DropdownMenu>
-                  </Dropdown>
-                </div>
+                )}
               </div>
-            </CardBody>
-          </Card>
-
-          <Card className="p-4">
-            <CardHeader>
-              <h2 className="text-lg font-semibold">Balance History</h2>
-            </CardHeader>
-            <Divider />
-            <CardBody>
-              <div className="space-y-2">
-                {paginatedBalanceHistory.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex flex-col p-2 rounded-lg bg-default-100"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`p-1.5 rounded-full ${
-                            entry.reason === "Balance cleared"
-                              ? "bg-yellow-100"
-                              : entry.type === "increase"
-                                ? "bg-success-100"
-                                : "bg-danger-100"
-                          }`}
-                        >
-                          {entry.reason === "Balance cleared" ? (
-                            <ArrowPathIcon className="w-4 h-4 text-yellow-500" />
-                          ) : entry.type === "increase" ? (
-                            <ArrowUpIcon className="w-4 h-4 text-success-500" />
-                          ) : (
-                            <ArrowDownIcon className="w-4 h-4 text-danger-500" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-sm">
-                            {capitalizeFirstLetter(entry.reason)}
-                          </p>
-                          <p className="text-xs text-default-400">
-                            {formatDate(entry.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div
-                          className={`font-bold text-sm ${
-                            entry.reason === "Balance cleared"
-                              ? "text-yellow-500"
-                              : entry.type === "increase"
-                                ? "text-success-500"
-                                : "text-danger-500"
-                          }`}
-                        >
-                          {entry.reason === "Balance cleared"
-                            ? ""
-                            : entry.type === "increase"
-                              ? "+"
-                              : "-"}{" "}
-                          {Math.abs(entry.amount).toLocaleString()} FCFA
-                        </div>
-                        <p className="text-xs text-default-400 flex items-center justify-end space-x-2">
-                          <span className="flex items-center">
-                            <ArrowLeftIcon className="w-3 h-3 mr-1" />
-                            {entry.previous_balance?.toLocaleString() ??
-                              "N/A"}{" "}
-                            FCFA
-                          </span>
-                          <span>|</span>
-                          <span className="flex items-center">
-                            <ArrowRightIcon className="w-3 h-3 mr-1" />
-                            {entry.new_balance?.toLocaleString() ?? "N/A"} FCFA
-                          </span>
-                        </p>
-                      </div>
-                    </div>
-                    {entry.notes && (
-                      <p className="text-xs text-default-500 mt-2 w-full">
-                        Note: {entry.notes}
-                      </p>
-                    )}
-                  </div>
-                ))}
+              <div>
+                <p className="text-sm text-default-500">Address</p>
+                <p>{member.address}</p>
               </div>
-              {totalPages > 1 && (
-                <div className="flex justify-center mt-4">
-                  {renderPaginationButtons()}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-        </div>
-
-        <Card className="p-4">
-          <CardHeader>
-            <h2 className="text-lg font-semibold">Recent Jobs</h2>
-          </CardHeader>
-          <Divider />
-          <CardBody>
-            <Table removeWrapper aria-label="Recent jobs">
-              <TableHeader>
-                <TableColumn>DATE</TableColumn>
-                <TableColumn>SERVICE</TableColumn>
-                <TableColumn>LOCATION</TableColumn>
-                <TableColumn>PRICE</TableColumn>
-                <TableColumn>STATUS</TableColumn>
-              </TableHeader>
-              <TableBody>
-                {/* Keep the existing static data for now */}
-                <TableRow>
-                  <TableCell>2023-06-01</TableCell>
-                  <TableCell>Cleaning</TableCell>
-                  <TableCell>New York</TableCell>
-                  <TableCell>{formatCurrency(150)}</TableCell>
-                  <TableCell>
-                    <Chip color="success" size="sm">
-                      Completed
-                    </Chip>
-                  </TableCell>
-                </TableRow>
-                {/* Add more rows as needed */}
-              </TableBody>
-            </Table>
+              <div>
+                <p className="text-sm text-default-500">Contract Start</p>
+                <p>
+                  {new Date(member.contract_start).toLocaleDateString()}{" "}
+                  <span className="text-sm text-default-500">
+                    ({calculateTimeSinceContractStart(member.contract_start)})
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-default-500">Salary</p>
+                <p>{formatCurrency(member.salary)} / day</p>
+              </div>
+              <div className="flex space-x-4">
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button
+                      color="primary"
+                      isLoading={isUploading.contract}
+                      size="sm"
+                      startContent={
+                        isUploading.contract ? null : member?.contract_file ? (
+                          <CheckIcon className="w-4 h-4" />
+                        ) : (
+                          <ArrowUpTrayIcon className="w-4 h-4" />
+                        )
+                      }
+                      variant="flat"
+                    >
+                      {isUploading.contract ? "Uploading..." : "Contract"}
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="Contract Actions">
+                    {member?.contract_file ? (
+                      <DropdownItem
+                        key="download"
+                        startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
+                        onPress={() => handleFileDownload("contract")}
+                      >
+                        Download
+                      </DropdownItem>
+                    ) : null}
+                    <DropdownItem
+                      key="upload"
+                      startContent={<ArrowUpTrayIcon className="w-4 h-4" />}
+                      onPress={() => handleFileUpload("contract")}
+                    >
+                      {member?.contract_file ? "Replace" : "Upload"}
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button
+                      color="secondary"
+                      isLoading={isUploading.id_card}
+                      size="sm"
+                      startContent={
+                        isUploading.id_card ? null : member?.id_card_file ? (
+                          <CheckIcon className="w-4 h-4" />
+                        ) : (
+                          <ArrowUpTrayIcon className="w-4 h-4" />
+                        )
+                      }
+                      variant="flat"
+                    >
+                      {isUploading.id_card ? "Uploading..." : "ID Card"}
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu aria-label="ID Card Actions">
+                    {member?.id_card_file ? (
+                      <DropdownItem
+                        key="download"
+                        startContent={<ArrowDownTrayIcon className="w-4 h-4" />}
+                        onPress={() => handleFileDownload("id_card")}
+                      >
+                        Download
+                      </DropdownItem>
+                    ) : null}
+                    <DropdownItem
+                      key="upload"
+                      startContent={<ArrowUpTrayIcon className="w-4 h-4" />}
+                      onPress={() => handleFileUpload("id_card")}
+                    >
+                      {member?.id_card_file ? "Replace" : "Upload"}
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </div>
+            </div>
           </CardBody>
         </Card>
 
-        <div className="flex justify-between items-center">
-          <span className="text-sm text-gray-500">
-            Created on: {new Date(member.created_at).toLocaleString()} by Admin
-          </span>
-          <div className="flex space-x-2">
-            <Button
-              color="primary"
-              startContent={<PencilIcon className="w-4 h-4" />}
-              variant="bordered"
-              onPress={() => setIsEditModalOpen(true)}
-            >
-              Edit
-            </Button>
+        <Card className="p-4">
+          <CardHeader>
+            <h2 className="text-lg font-semibold">Balance History</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody>
+            <div className="space-y-2">
+              {paginatedBalanceHistory.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex flex-col p-2 rounded-lg bg-default-100"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div
+                        className={`p-1.5 rounded-full ${
+                          entry.reason === "Balance cleared"
+                            ? "bg-yellow-100"
+                            : entry.type === "increase"
+                              ? "bg-success-100"
+                              : "bg-danger-100"
+                        }`}
+                      >
+                        {entry.reason === "Balance cleared" ? (
+                          <ArrowPathIcon className="w-4 h-4 text-yellow-500" />
+                        ) : entry.type === "increase" ? (
+                          <ArrowUpIcon className="w-4 h-4 text-success-500" />
+                        ) : (
+                          <ArrowDownIcon className="w-4 h-4 text-danger-500" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">
+                          {capitalizeFirstLetter(entry.reason)}
+                        </p>
+                        <p className="text-xs text-default-400">
+                          {formatDate(entry.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div
+                        className={`font-bold text-sm ${
+                          entry.reason === "Balance cleared"
+                            ? "text-yellow-500"
+                            : entry.type === "increase"
+                              ? "text-success-500"
+                              : "text-danger-500"
+                        }`}
+                      >
+                        {entry.reason === "Balance cleared"
+                          ? ""
+                          : entry.type === "increase"
+                            ? "+"
+                            : "-"}{" "}
+                        {Math.abs(entry.amount).toLocaleString()} FCFA
+                      </div>
+                      <p className="text-xs text-default-400 flex items-center justify-end space-x-2">
+                        <span className="flex items-center">
+                          <ArrowLeftIcon className="w-3 h-3 mr-1" />
+                          {entry.previous_balance?.toLocaleString() ??
+                            "N/A"}{" "}
+                          FCFA
+                        </span>
+                        <span>|</span>
+                        <span className="flex items-center">
+                          <ArrowRightIcon className="w-3 h-3 mr-1" />
+                          {entry.new_balance?.toLocaleString() ?? "N/A"} FCFA
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  {entry.notes && (
+                    <p className="text-xs text-default-500 mt-2 w-full">
+                      Note: {entry.notes}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-4">
+                {renderPaginationButtons()}
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      <Card className="p-4">
+        <CardHeader>
+          <h2 className="text-lg font-semibold">Recent Jobs</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody>
+          <Table removeWrapper aria-label="Recent jobs">
+            <TableHeader>
+              <TableColumn>DATE</TableColumn>
+              <TableColumn>SERVICE</TableColumn>
+              <TableColumn>LOCATION</TableColumn>
+              <TableColumn>PRICE</TableColumn>
+              <TableColumn>STATUS</TableColumn>
+            </TableHeader>
+            <TableBody>
+              {/* Keep the existing static data for now */}
+              <TableRow>
+                <TableCell>2023-06-01</TableCell>
+                <TableCell>Cleaning</TableCell>
+                <TableCell>New York</TableCell>
+                <TableCell>{formatCurrency(150)}</TableCell>
+                <TableCell>
+                  <Chip color="success" size="sm">
+                    Completed
+                  </Chip>
+                </TableCell>
+              </TableRow>
+              {/* Add more rows as needed */}
+            </TableBody>
+          </Table>
+        </CardBody>
+      </Card>
+
+      <div className="flex justify-between items-center">
+        <span className="text-sm text-gray-500">
+          Created on: {new Date(member.created_at).toLocaleString()} by Admin
+        </span>
+        <div className="flex space-x-2">
+          <Button
+            color="primary"
+            startContent={<PencilIcon className="w-4 h-4" />}
+            variant="bordered"
+            onPress={() => setIsEditModalOpen(true)}
+          >
+            Edit
+          </Button>
+          <Button
+            color="danger"
+            startContent={<TrashIcon className="w-4 h-4" />}
+            variant="bordered"
+            onPress={() => setIsDeleteModalOpen(true)}
+          >
+            Delete
+          </Button>
+        </div>
+      </div>
+
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditErrors({});
+        }}
+      >
+        <ModalContent>
+          <ModalHeader>Edit User Info</ModalHeader>
+          <ModalBody>
+            {editedMember && (
+              <>
+                <Input
+                  errorMessage={editErrors.name}
+                  isInvalid={!!editErrors.name}
+                  label="Name"
+                  value={editedMember.name}
+                  onChange={(e) =>
+                    setEditedMember({ ...editedMember, name: e.target.value })
+                  }
+                />
+                <Input
+                  errorMessage={editErrors.email}
+                  isInvalid={!!editErrors.email}
+                  label="Email"
+                  value={editedMember.email}
+                  onChange={(e) =>
+                    setEditedMember({
+                      ...editedMember,
+                      email: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  errorMessage={editErrors.phone1}
+                  isInvalid={!!editErrors.phone1}
+                  label="Phone 1"
+                  value={editedMember.phone1}
+                  onChange={(e) =>
+                    setEditedMember({
+                      ...editedMember,
+                      phone1: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  label="Phone 2 (Optional)"
+                  value={editedMember.phone2}
+                  onChange={(e) =>
+                    setEditedMember({
+                      ...editedMember,
+                      phone2: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  errorMessage={editErrors.address}
+                  isInvalid={!!editErrors.address}
+                  label="Address"
+                  value={editedMember.address}
+                  onChange={(e) =>
+                    setEditedMember({
+                      ...editedMember,
+                      address: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  errorMessage={editErrors.contract_start}
+                  isInvalid={!!editErrors.contract_start}
+                  label="Contract Start Date"
+                  type="date"
+                  value={editedMember.contract_start.split("T")[0]}
+                  onChange={(e) =>
+                    setEditedMember({
+                      ...editedMember,
+                      contract_start: e.target.value,
+                    })
+                  }
+                />
+                <Input
+                  endContent={
+                    <div className="pointer-events-none flex items-center">
+                      <span className="text-default-400 text-small">/ day</span>
+                    </div>
+                  }
+                  errorMessage={editErrors.salary}
+                  isInvalid={!!editErrors.salary}
+                  label="Salary"
+                  type="number"
+                  value={editedMember.salary.toString()}
+                  onChange={(e) =>
+                    setEditedMember({
+                      ...editedMember,
+                      salary: Number(e.target.value),
+                    })
+                  }
+                />
+              </>
+            )}
+          </ModalBody>
+          <ModalFooter>
             <Button
               color="danger"
-              startContent={<TrashIcon className="w-4 h-4" />}
-              variant="bordered"
-              onPress={() => setIsDeleteModalOpen(true)}
+              variant="light"
+              onPress={() => {
+                setIsEditModalOpen(false);
+                setEditErrors({});
+              }}
             >
+              Cancel
+            </Button>
+            <Button color="primary" onPress={handleEditSave}>
+              Save Changes
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      <Modal
+        backdrop="blur"
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            Confirm Deletion
+          </ModalHeader>
+          <ModalBody>
+            <p className="text-danger">
+              Warning: This action cannot be undone.
+            </p>
+            <p>Are you sure you want to delete {member.name} from the team?</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => setIsDeleteModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button color="danger" onPress={handleDelete}>
               Delete
             </Button>
-          </div>
-        </div>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
 
-        <Modal
-          isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false);
-            setEditErrors({});
-          }}
-        >
-          <ModalContent>
-            <ModalHeader>Edit User Info</ModalHeader>
-            <ModalBody>
-              {editedMember && (
-                <>
-                  <Input
-                    errorMessage={editErrors.name}
-                    isInvalid={!!editErrors.name}
-                    label="Name"
-                    value={editedMember.name}
-                    onChange={(e) =>
-                      setEditedMember({ ...editedMember, name: e.target.value })
-                    }
-                  />
-                  <Input
-                    errorMessage={editErrors.email}
-                    isInvalid={!!editErrors.email}
-                    label="Email"
-                    value={editedMember.email}
-                    onChange={(e) =>
-                      setEditedMember({
-                        ...editedMember,
-                        email: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    errorMessage={editErrors.phone1}
-                    isInvalid={!!editErrors.phone1}
-                    label="Phone 1"
-                    value={editedMember.phone1}
-                    onChange={(e) =>
-                      setEditedMember({
-                        ...editedMember,
-                        phone1: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    label="Phone 2 (Optional)"
-                    value={editedMember.phone2}
-                    onChange={(e) =>
-                      setEditedMember({
-                        ...editedMember,
-                        phone2: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    errorMessage={editErrors.address}
-                    isInvalid={!!editErrors.address}
-                    label="Address"
-                    value={editedMember.address}
-                    onChange={(e) =>
-                      setEditedMember({
-                        ...editedMember,
-                        address: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    errorMessage={editErrors.contract_start}
-                    isInvalid={!!editErrors.contract_start}
-                    label="Contract Start Date"
-                    type="date"
-                    value={editedMember.contract_start.split("T")[0]}
-                    onChange={(e) =>
-                      setEditedMember({
-                        ...editedMember,
-                        contract_start: e.target.value,
-                      })
-                    }
-                  />
-                  <Input
-                    endContent={
-                      <div className="pointer-events-none flex items-center">
-                        <span className="text-default-400 text-small">
-                          / day
-                        </span>
-                      </div>
-                    }
-                    errorMessage={editErrors.salary}
-                    isInvalid={!!editErrors.salary}
-                    label="Salary"
-                    type="number"
-                    value={editedMember.salary.toString()}
-                    onChange={(e) =>
-                      setEditedMember({
-                        ...editedMember,
-                        salary: Number(e.target.value),
-                      })
-                    }
-                  />
-                </>
-              )}
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                color="danger"
-                variant="light"
-                onPress={() => {
-                  setIsEditModalOpen(false);
-                  setEditErrors({});
-                }}
-              >
-                Cancel
-              </Button>
-              <Button color="primary" onPress={handleEditSave}>
-                Save Changes
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
+      <UpdateBalanceModal
+        balanceChange={balanceChange}
+        balanceError={balanceError}
+        balanceNote={balanceNote}
+        balanceReason={balanceReason}
+        currentBalance={member?.current_balance || 0}
+        handleClearBalance={handleClearBalance}
+        handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
+        isClearingBalance={isClearingBalance}
+        isLoading={isBalanceUpdateLoading}
+        isOpen={isBalanceModalOpen}
+        memberName={member?.name || ""}
+        setBalanceChange={setBalanceChange}
+        setBalanceNote={setBalanceNote}
+        setBalanceReason={setBalanceReason}
+        onClose={() => {
+          setIsBalanceModalOpen(false);
+          setBalanceError("");
+          setBalanceReason("");
+          setBalanceNote("");
+        }}
+      />
 
-        <Modal
-          backdrop="blur"
-          isOpen={isDeleteModalOpen}
-          onClose={() => setIsDeleteModalOpen(false)}
-        >
-          <ModalContent>
-            <ModalHeader className="flex flex-col gap-1">
-              Confirm Deletion
-            </ModalHeader>
-            <ModalBody>
-              <p className="text-danger">
-                Warning: This action cannot be undone.
-              </p>
-              <p>
-                Are you sure you want to delete {member.name} from the team?
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                color="default"
-                variant="light"
-                onPress={() => setIsDeleteModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button color="danger" onPress={handleDelete}>
-                Delete
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-
-        <UpdateBalanceModal
-          balanceChange={balanceChange}
-          balanceError={balanceError}
-          balanceNote={balanceNote}
-          balanceReason={balanceReason}
-          currentBalance={member?.current_balance || 0}
-          handleClearBalance={handleClearBalance}
-          handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
-          isLoading={isBalanceUpdateLoading}
-          isOpen={isBalanceModalOpen}
-          memberName={member?.name || ""}
-          setBalanceChange={setBalanceChange}
-          setBalanceNote={setBalanceNote}
-          setBalanceReason={setBalanceReason}
-          onClose={() => {
-            setIsBalanceModalOpen(false);
-            setBalanceError("");
-            setBalanceReason("");
-            setBalanceNote("");
-          }}
-        />
-
-        <Modal
-          backdrop="blur"
-          isOpen={isClearBalanceModalOpen}
-          onClose={() => setIsClearBalanceModalOpen(false)}
-        >
-          <ModalContent>
-            <ModalHeader className="flex flex-col gap-1">
+      <Modal
+        backdrop="blur"
+        isOpen={isClearBalanceModalOpen}
+        onClose={() => setIsClearBalanceModalOpen(false)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            Clear Balance
+          </ModalHeader>
+          <ModalBody>
+            <p>Are you sure you want to clear the current balance?</p>
+            <p>
+              Current balance of {formatCurrency(member.current_balance)} will
+              be added to Total Earned.
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => setIsClearBalanceModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button color="danger" onPress={handleClearBalance}>
               Clear Balance
-            </ModalHeader>
-            <ModalBody>
-              <p>Are you sure you want to clear the current balance?</p>
-              <p>
-                Current balance of {formatCurrency(member.current_balance)} will
-                be added to Total Earned.
-              </p>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                color="default"
-                variant="light"
-                onPress={() => setIsClearBalanceModalOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button color="danger" onPress={handleClearBalance}>
-                Clear Balance
-              </Button>
-            </ModalFooter>
-          </ModalContent>
-        </Modal>
-      </div>
-    </>
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+    </div>
   );
-}
+};
+
+export default TeamMemberDetails;

@@ -39,28 +39,6 @@ import { Toaster } from "react-hot-toast";
 
 import { supabase } from "@/lib/supabaseClient";
 
-const SERVICES = ["Couch", "Chair", "Carpet", "House", "Car seats"];
-const LOCATIONS = [
-  "Bastos",
-  "Mvan",
-  "Nsimeyong",
-  "Biyem-Assi",
-  "Mimboman",
-  "Ngousso",
-  "Emana",
-  "Nkolbisson",
-  "Ekounou",
-  "Essos",
-];
-const ROLES = ["Admin", "Manager", "Technician", "Marketing"];
-const STATUSES = [
-  "Follow-up",
-  "Scheduled",
-  "Confirmed",
-  "Completed",
-  "Canceled",
-];
-
 type Location = {
   id: string;
   name: string;
@@ -78,12 +56,23 @@ type BookingStatus = {
   completed: number;
 };
 
+type EditableItem = {
+  id: string;
+  name: string;
+  type: string;
+};
+
 export default function Settings() {
   const [services, setServices] = useState<
     Array<{ id: string; name: string; enabled: boolean }>
   >([]);
   const [locations, setLocations] = useState<Location[]>([]);
-  const [roles, setRoles] = useState(ROLES);
+  const [roles, setRoles] = useState([
+    "Admin",
+    "Manager",
+    "Technician",
+    "Marketing",
+  ]);
   const [statuses, setStatuses] = useState<BookingStatus[]>([]);
 
   const [newService, setNewService] = useState("");
@@ -107,18 +96,14 @@ export default function Settings() {
   const [isNewRoleModalOpen, setIsNewRoleModalOpen] = useState(false);
   const [isNewStatusModalOpen, setIsNewStatusModalOpen] = useState(false);
 
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [deletingItem, setDeletingItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<EditableItem | null>(null);
   const {
     isOpen: isEditModalOpen,
     onOpen: onEditModalOpen,
     onClose: onEditModalClose,
   } = useDisclosure();
-  const {
-    isOpen: isDeleteModalOpen,
-    onOpen: onDeleteModalOpen,
-    onClose: onDeleteModalClose,
-  } = useDisclosure();
+  const { isOpen: isDeleteModalOpen, onClose: onDeleteModalClose } =
+    useDisclosure();
 
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -144,7 +129,7 @@ export default function Settings() {
       if (error) throw error;
       setLocations(data || []);
     } catch (error) {
-      console.error("Error fetching locations:", error);
+      toast.error("Error fetching locations:", error);
     } finally {
       setIsLoading(false);
     }
@@ -161,8 +146,7 @@ export default function Settings() {
       if (error) throw error;
       setServices(data || []);
     } catch (error) {
-      console.error("Error fetching services:", error);
-      toast.error("Failed to fetch services. Please try again.");
+      toast.error("Error fetching services:", error);
     } finally {
       setIsLoading(false);
     }
@@ -179,8 +163,7 @@ export default function Settings() {
       if (error) throw error;
       setStatuses(data || []);
     } catch (error) {
-      console.error("Error fetching statuses:", error);
-      toast.error("Failed to fetch statuses. Please try again.");
+      toast.error("Error fetching statuses:", error);
     } finally {
       setIsLoading(false);
     }
@@ -223,8 +206,7 @@ export default function Settings() {
         setServiceError(false);
         toast.success("Service added successfully!");
       } catch (error) {
-        console.error("Error adding service:", error);
-        toast.error("Failed to add service. Please try again.");
+        toast.error("Error adding service:", error);
       }
     } else {
       setServiceError(true);
@@ -260,12 +242,7 @@ export default function Settings() {
           throw new Error("No data returned from insert operation");
         }
       } catch (error) {
-        console.error("Error adding location:", error);
-        if (error instanceof Error) {
-          toast.error(`Failed to add location: ${error.message}`);
-        } else {
-          toast.error("Failed to add location. Please try again.");
-        }
+        toast.error("Error adding location:", error);
       } finally {
         setIsLoading(false);
       }
@@ -312,8 +289,7 @@ export default function Settings() {
       );
       toast.success("Service updated successfully!");
     } catch (error) {
-      console.error("Error updating service:", error);
-      toast.error("Failed to update service. Please try again.");
+      toast.error("Error updating service:", error);
     }
   };
 
@@ -345,13 +321,12 @@ export default function Settings() {
         await fetchLocations(); // Refresh the locations data
         toast.success("Location updated successfully!");
       } catch (error) {
-        console.error("Error updating location:", error);
-        toast.error("Failed to update location. Please try again.");
+        toast.error("Error updating location:", error);
       }
     }
   };
 
-  const handleEdit = (item: any, type: string) => {
+  const handleEdit = (item: EditableItem, type: string) => {
     setEditingItem({ ...item, type });
     onEditModalOpen();
   };
@@ -365,18 +340,17 @@ export default function Settings() {
       setServices(services.filter((service) => service.id !== id));
       toast.success("Service deleted successfully!");
     } catch (error) {
-      console.error("Error deleting service:", error);
-      toast.error("Failed to delete service. Please try again.");
+      toast.error("Error deleting service:", error);
     }
   };
 
   const handleDeleteConfirm = async () => {
-    if (deletingItem) {
+    if (editingItem) {
       try {
         const { error } = await supabase
           .from("locations")
           .delete()
-          .eq("id", deletingItem.id);
+          .eq("id", editingItem.id);
 
         if (error) throw error;
 
@@ -384,17 +358,12 @@ export default function Settings() {
         await fetchLocations(); // Refresh the locations data
         toast.success("Location deleted successfully!");
       } catch (error) {
-        console.error("Error deleting location:", error);
-        toast.error("Failed to delete location. Please try again.");
+        toast.error("Error deleting location:", error);
       }
     }
   };
 
-  const fetchRoles = async () => {
-    // Implement this function to fetch roles from Supabase
-  };
-
-  const handleEditSave = async (item: any) => {
+  const handleEditSave = async (item: EditableItem) => {
     if (item.type === "services") {
       try {
         const { error } = await supabase
@@ -411,8 +380,7 @@ export default function Settings() {
         );
         toast.success("Service updated successfully!");
       } catch (error) {
-        console.error("Error updating service:", error);
-        toast.error("Failed to update service. Please try again.");
+        toast.error("Error updating service. Please try again.");
       }
     }
     // Add more conditions here for other types (locations, roles, statuses) if needed
@@ -995,7 +963,7 @@ export default function Settings() {
             </p>
             <p>
               Are you sure you want to delete this{" "}
-              {deletingItem?.type.slice(0, -1)}?
+              {editingItem?.type.slice(0, -1)}?
             </p>
           </ModalBody>
           <ModalFooter>

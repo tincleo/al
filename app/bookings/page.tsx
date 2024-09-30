@@ -102,9 +102,6 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterValue, setFilterValue] = React.useState("");
-  const [selectedKeys, setSelectedKeys] = React.useState<Selection>(
-    new Set([]),
-  );
   const [visibleColumns, setVisibleColumns] = React.useState<Selection>(
     new Set(INITIAL_VISIBLE_COLUMNS),
   );
@@ -164,8 +161,7 @@ export default function BookingsPage() {
 
       setBookings(bookingsWithLocationNames);
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load bookings");
+      toast.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -233,17 +229,14 @@ export default function BookingsPage() {
       switch (columnKey) {
         case "rowNumber":
           if (!booking || !booking.id || !Array.isArray(bookings)) {
-            console.error("Invalid booking or bookings array:", {
-              booking,
-              bookingsLength: bookings?.length,
-            });
+            toast.error("Invalid booking or bookings array");
 
             return "N/A";
           }
           const index = bookings.findIndex((b) => b.id === booking.id);
 
           if (index === -1) {
-            console.error("Booking not found in bookings array:", booking);
+            toast.error("Booking not found in bookings array");
 
             return "N/A";
           }
@@ -502,11 +495,6 @@ export default function BookingsPage() {
     setIsModalOpen(false);
     fetchBookings(); // Refresh the bookings list
   };
-
-  // Add this logging somewhere in your component, perhaps in a useEffect
-  useEffect(() => {
-    console.log("Bookings state:", bookings);
-  }, [bookings]);
 
   return (
     <section className="flex flex-col gap-4">

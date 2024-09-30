@@ -91,9 +91,6 @@ export default function TeamPage() {
   const router = useRouter();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [filterValue, setFilterValue] = React.useState("");
-  const [selectedKeys, setSelectedKeys] = React.useState<Selection>(
-    new Set([]),
-  );
   const [visibleColumns, setVisibleColumns] = React.useState<Selection>(
     new Set(INITIAL_VISIBLE_COLUMNS),
   );
@@ -128,6 +125,8 @@ export default function TeamPage() {
   const [balanceError, setBalanceError] = useState("");
   const [balanceReason, setBalanceReason] = useState("");
   const [balanceNote, setBalanceNote] = useState("");
+  const [isClearingBalance, setIsClearingBalance] = useState(false);
+  const [isBalanceUpdateLoading, setIsBalanceUpdateLoading] = useState(false);
 
   const hasSearchFilter = Boolean(filterValue);
 
@@ -444,7 +443,7 @@ export default function TeamPage() {
     const { data, error } = await supabase.from("team").select("*");
 
     if (error) {
-      console.error("Error fetching team members:", error);
+      toast.error("Error fetching team members:", error);
     } else {
       setTeamMembers(data);
     }
@@ -488,9 +487,8 @@ export default function TeamPage() {
       .select();
 
     if (error) {
-      console.error("Error adding new member:", error);
-      toast.error("Failed to add new member. Please try again.");
-    } else {
+      toast.error(`Failed to add new member: ${error.message}`);
+    } else if (data) {
       setTeamMembers([...teamMembers, data[0]]);
       setIsNewMemberModalOpen(false);
       setNewMember({
@@ -522,75 +520,61 @@ export default function TeamPage() {
   const handleConfirmBalanceUpdate = async () => {
     if (!selectedMember) return;
 
-    const changeAmount = parseFloat(balanceChange);
+    setIsBalanceUpdateLoading(true);
 
-    if (isNaN(changeAmount) || changeAmount <= 0) {
-      setBalanceError("Please enter a valid positive number");
+    try {
+      const changeAmount = parseFloat(balanceChange);
 
-      return;
-    }
+      if (isNaN(changeAmount) || changeAmount <= 0) {
+        setBalanceError("Please enter a valid positive number");
 
-    if (!balanceReason) {
-      setBalanceError("Please select a reason");
+        return;
+      }
 
-      return;
-    }
+      if (!balanceReason) {
+        setBalanceError("Please select a reason");
 
-    const finalChangeAmount =
-      balanceReason === "Deduction" ? -changeAmount : changeAmount;
+        return;
+      }
 
-    const previousBalance = selectedMember.current_balance;
-    const newBalance = Math.round(previousBalance + finalChangeAmount);
+      const finalChangeAmount =
+        balanceReason === "Deduction" ? -changeAmount : changeAmount;
 
-    // Update total_earned for Daily salary and Bonus
-    let newTotalEarned = selectedMember.total_earned;
+      const previousBalance = selectedMember.current_balance;
+      const newBalance = Math.round(previousBalance + finalChangeAmount);
 
-    if (balanceReason === "Daily salary" || balanceReason === "Bonus") {
-      newTotalEarned += changeAmount;
-    }
+      let newTotalEarned = selectedMember.total_earned;
 
-    const { error: updateError } = await supabase
-      .from("team")
-      .update({
-        current_balance: newBalance,
-        total_earned: newTotalEarned,
-      })
-      .eq("id", selectedMember.id);
+      if (balanceReason === "Daily salary" || balanceReason === "Bonus") {
+        newTotalEarned += changeAmount;
+      }
 
-    if (updateError) {
-      console.error("Error updating balance:", updateError);
-      toast.error("Failed to update balance. Please try again.");
-
-      return;
-    }
-
-    const { error: historyError } = await supabase
-      .from("balance_history")
-      .insert({
-        team_member_id: selectedMember.id,
-        amount: finalChangeAmount,
-        type: finalChangeAmount > 0 ? "increase" : "decrease",
-        reason: balanceReason,
-        previous_balance: previousBalance,
-        new_balance: newBalance,
-        notes: balanceNote || null,
+      const { error } = await supabase.rpc("update_balance_and_history", {
+        p_member_id: selectedMember.id,
+        p_new_balance: newBalance,
+        p_new_total_earned: newTotalEarned,
+        p_amount: finalChangeAmount,
+        p_reason: balanceReason,
+        p_previous_balance: previousBalance,
+        p_notes: balanceNote || null,
       });
 
-    if (historyError) {
-      console.error("Error recording balance history:", historyError);
-      toast.error("Failed to record balance history. Please try again.");
-    } else {
+      if (error) {
+        throw error;
+      }
+
       setTeamMembers(
-        teamMembers.map((member) =>
-          member.id === selectedMember.id
+        teamMembers.map((m) =>
+          m.id === selectedMember.id
             ? {
-                ...member,
+                ...m,
                 current_balance: newBalance,
                 total_earned: newTotalEarned,
               }
-            : member,
+            : m,
         ),
       );
+
       setIsBalanceModalOpen(false);
       setBalanceError("");
       setBalanceReason("");
@@ -598,53 +582,74 @@ export default function TeamPage() {
       toast.success(
         `Balance ${finalChangeAmount > 0 ? "increased" : "decreased"} by ${Math.abs(finalChangeAmount).toLocaleString()} FCFA successfully!`,
       );
+    } catch (error) {
+      toast.error("Failed to update balance. Please try again.");
+    } finally {
+      setIsBalanceUpdateLoading(false);
     }
   };
 
   const handleClearBalance = async () => {
-    if (!selectedMember) return;
-
-    const previousBalance = selectedMember.current_balance;
-    const changeAmount = -previousBalance;
-
-    const { error: updateError } = await supabase
-      .from("team")
-      .update({ current_balance: 0 })
-      .eq("id", selectedMember.id);
-
-    if (updateError) {
-      console.error("Error clearing balance:", updateError);
-      toast.error("Failed to clear balance. Please try again.");
-
+    if (
+      !selectedMember ||
+      selectedMember.current_balance === 0 ||
+      isClearingBalance
+    )
       return;
-    }
 
-    const { error: historyError } = await supabase
-      .from("balance_history")
-      .insert({
-        team_member_id: selectedMember.id,
-        amount: changeAmount,
-        type: "decrease",
-        reason: "Balance cleared",
-        previous_balance: previousBalance,
-        new_balance: 0,
-      });
+    setIsClearingBalance(true);
 
-    if (historyError) {
-      console.error("Error recording balance history:", historyError);
-      toast.error("Failed to record balance history. Please try again.");
-    } else {
+    try {
+      const previousBalance = selectedMember.current_balance;
+      const changeAmount = -previousBalance;
+
+      const { error: updateError } = await supabase
+        .from("team")
+        .update({
+          current_balance: 0,
+          total_earned: selectedMember.total_earned + previousBalance,
+        })
+        .eq("id", selectedMember.id);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { error: historyError } = await supabase
+        .from("balance_history")
+        .insert({
+          team_member_id: selectedMember.id,
+          amount: changeAmount,
+          type: "decrease",
+          reason: "Balance cleared",
+          previous_balance: previousBalance,
+          new_balance: 0,
+        });
+
+      if (historyError) {
+        throw historyError;
+      }
+
       setTeamMembers(
-        teamMembers.map((member) =>
-          member.id === selectedMember.id
-            ? { ...member, current_balance: 0 }
-            : member,
+        teamMembers.map((m) =>
+          m.id === selectedMember.id
+            ? {
+                ...m,
+                current_balance: 0,
+                total_earned: m.total_earned + previousBalance,
+              }
+            : m,
         ),
       );
+
       setIsBalanceModalOpen(false);
       toast.success(
         `Balance cleared successfully. ${previousBalance.toLocaleString()} FCFA paid out.`,
       );
+    } catch (error) {
+      toast.error("Failed to clear balance. Please try again.");
+    } finally {
+      setIsClearingBalance(false);
     }
   };
 
@@ -813,6 +818,8 @@ export default function TeamPage() {
         currentBalance={selectedMember?.current_balance || 0}
         handleClearBalance={handleClearBalance}
         handleConfirmBalanceUpdate={handleConfirmBalanceUpdate}
+        isClearingBalance={isClearingBalance}
+        isLoading={isBalanceUpdateLoading}
         isOpen={isBalanceModalOpen}
         memberName={selectedMember?.name || ""}
         setBalanceChange={setBalanceChange}

@@ -1,3 +1,5 @@
+import { UpdateBalanceModal } from "../../components/UpdateBalanceModal";
+
 const handleConfirmBalanceUpdate = async () => {
   if (!member) return; // or !selectedMember for team/page.tsx
 
@@ -72,7 +74,7 @@ const handleConfirmBalanceUpdate = async () => {
   }
 };
 
-// Add this state
+// Move the useState hook inside the component function
 const [isClearingBalance, setIsClearingBalance] = useState(false);
 
 // Update the handleClearBalance function

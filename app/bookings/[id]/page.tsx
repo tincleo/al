@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -40,7 +40,6 @@ import {
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
-import { useDropzone } from "react-dropzone";
 import { Spinner } from "@nextui-org/react";
 import toast, { Toaster } from "react-hot-toast";
 
@@ -106,7 +105,7 @@ export default function BookingDetails() {
     fetchTeamMembers();
   }, [bookingId]);
 
-  const fetchBookingDetails = async () => {
+  const fetchBookingDetails = useCallback(async () => {
     try {
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
@@ -124,7 +123,8 @@ export default function BookingDetails() {
         .single();
 
       if (locationError) {
-        console.error("Error fetching location name:", locationError);
+        // Replace console.error with a toast notification or other error handling
+        toast.error("Error fetching location name");
       }
 
       const bookingWithLocationName = {
@@ -143,22 +143,23 @@ export default function BookingDetails() {
         ),
       );
     } catch (error) {
-      console.error("Error fetching booking details:", error);
+      // Replace console.error with a toast notification or other error handling
       toast.error("Failed to load booking details");
     }
-  };
+  }, [bookingId]);
 
-  const fetchTeamMembers = async () => {
+  const fetchTeamMembers = useCallback(async () => {
     const { data, error } = await supabase
       .from("team")
       .select("id, name, avatar");
 
     if (error) {
-      console.error("Error fetching team members:", error);
+      // Replace console.error with a toast notification or other error handling
+      toast.error("Error fetching team members");
     } else {
       setTeamMembers(data || []);
     }
-  };
+  }, []);
 
   const handleDelete = async () => {
     setIsDeleteModalOpen(false);
@@ -168,7 +169,7 @@ export default function BookingDetails() {
       .eq("id", bookingId);
 
     if (error) {
-      console.error("Error deleting booking:", error);
+      // Replace console.error with a toast notification
       toast.error("Failed to delete booking. Please try again.");
     } else {
       toast.success("Booking deleted successfully!");
@@ -192,7 +193,7 @@ export default function BookingDetails() {
       .eq("id", bookingId);
 
     if (error) {
-      console.error("Error updating booking:", error);
+      toast.error("Error updating booking:", error);
     } else {
       setIsCompleteModalOpen(false);
       fetchBookingDetails();
@@ -250,8 +251,8 @@ export default function BookingDetails() {
       // Refresh booking details
       fetchBookingDetails();
     } catch (error) {
-      console.error(`Error uploading ${type} images:`, error);
-      // You might want to show an error message to the user here
+      // Replace console.error with a toast notification
+      toast.error(`Error uploading ${type} images`);
     } finally {
       setUploading(false);
     }
@@ -277,15 +278,6 @@ export default function BookingDetails() {
     }
   };
 
-  const {
-    getRootProps: getRootPropsBefore,
-    getInputProps: getInputPropsBefore,
-  } = useDropzone({
-    onDrop: (acceptedFiles: File[]) =>
-      handleImageUpload(acceptedFiles, "before"),
-    noClick: true, // Prevents the default click behavior
-  });
-
   const handleFileInputChangeAfter = (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -301,13 +293,6 @@ export default function BookingDetails() {
       fileInputRefAfter.current.click();
     }
   };
-
-  const { getRootProps: getRootPropsAfter, getInputProps: getInputPropsAfter } =
-    useDropzone({
-      onDrop: (acceptedFiles: File[]) =>
-        handleImageUpload(acceptedFiles, "after"),
-      noClick: true, // Prevents the default click behavior
-    });
 
   const supabaseLoader = ({
     src,
@@ -350,8 +335,8 @@ export default function BookingDetails() {
       // Refresh booking details
       fetchBookingDetails();
     } catch (error) {
-      console.error(`Error deleting image:`, error);
-      // You might want to show an error message to the user here
+      // Replace console.error with a toast notification
+      toast.error(`Error deleting image`);
     }
   };
 
@@ -372,7 +357,8 @@ export default function BookingDetails() {
       .eq("id", bookingId);
 
     if (error) {
-      console.error("Error updating assigned team:", error);
+      // Replace console.error with a toast notification
+      toast.error("Error updating assigned team");
     } else {
       fetchBookingDetails();
     }
@@ -398,8 +384,7 @@ export default function BookingDetails() {
       .eq("id", bookingId);
 
     if (error) {
-      console.error("Error updating booking:", error);
-      toast.error("Failed to update booking. Please try again.");
+      toast.error("Error updating booking:", error);
     } else {
       setIsEditModalOpen(false);
       fetchBookingDetails();
@@ -574,7 +559,14 @@ export default function BookingDetails() {
                       <div
                         key={member.id}
                         className="flex items-center space-x-2 p-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
+                        role="button"
+                        tabIndex={0}
                         onClick={() => router.push(`/team/${member.id}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            router.push(`/team/${member.id}`);
+                          }
+                        }}
                       >
                         <Avatar
                           name={member.name}
@@ -596,7 +588,7 @@ export default function BookingDetails() {
         </Card>
 
         <Card className="p-4">
-          <div {...getRootPropsBefore()} className="h-full">
+          <div className="h-full">
             <CardHeader className="flex justify-between items-center">
               <h2 className={title({ size: "sm" })}>Images Before</h2>
               <Button
@@ -660,7 +652,7 @@ export default function BookingDetails() {
         </Card>
 
         <Card className="p-4">
-          <div {...getRootPropsAfter()} className="h-full">
+          <div className="h-full">
             <CardHeader className="flex justify-between items-center">
               <h2 className={title({ size: "sm" })}>Images After</h2>
               <Button
