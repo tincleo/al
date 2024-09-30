@@ -60,7 +60,7 @@ import {
 
 import { supabase } from "@/lib/supabaseClient";
 
-// import { UpdateBalanceModal } from "../../components/UpdateBalanceModal";
+import { UpdateBalanceModal } from "@/app/components/UpdateBalanceModal";
 
 type TeamMember = {
   id: string;
@@ -1228,7 +1228,7 @@ const TeamMemberDetails = () => {
         </ModalContent>
       </Modal>
 
-      {/* <UpdateBalanceModal
+      <UpdateBalanceModal
         balanceChange={balanceChange}
         balanceError={balanceError}
         balanceNote={balanceNote}
@@ -1249,7 +1249,7 @@ const TeamMemberDetails = () => {
           setBalanceReason("");
           setBalanceNote("");
         }}
-      /> */}
+      />
 
       <Modal
         backdrop="blur"

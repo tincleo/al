@@ -1,4 +1,4 @@
-import { UpdateBalanceModal } from "../../components/UpdateBalanceModal";
+import { UpdateBalanceModal } from "@/app/components/UpdateBalanceModal";
 
 const handleConfirmBalanceUpdate = async () => {
   if (!member) return; // or !selectedMember for team/page.tsx
