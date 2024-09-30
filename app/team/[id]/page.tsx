@@ -60,7 +60,7 @@ import {
 
 import { supabase } from "@/lib/supabaseClient";
 
-import { UpdateBalanceModal } from "../../components/UpdateBalanceModal";
+import { UpdateBalanceModal } from "@/app/components/UpdateBalanceModal";
 
 type TeamMember = {
   id: string;
