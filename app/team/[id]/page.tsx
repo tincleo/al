@@ -1228,7 +1228,7 @@ const TeamMemberDetails = () => {
         </ModalContent>
       </Modal>
 
-      <UpdateBalanceModal
+      {/* <UpdateBalanceModal
         balanceChange={balanceChange}
         balanceError={balanceError}
         balanceNote={balanceNote}
@@ -1249,7 +1249,7 @@ const TeamMemberDetails = () => {
           setBalanceReason("");
           setBalanceNote("");
         }}
-      />
+      /> */}
 
       <Modal
         backdrop="blur"
