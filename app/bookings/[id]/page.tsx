@@ -38,6 +38,8 @@ import {
   PencilIcon,
   PlusIcon,
   XCircleIcon,
+  CheckIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
 import { Spinner } from "@nextui-org/react";
@@ -99,6 +101,8 @@ export default function BookingDetails() {
   );
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
+  const [isEditBlockedModalOpen, setIsEditBlockedModalOpen] = useState(false);
 
   useEffect(() => {
     fetchBookingDetails();
@@ -181,6 +185,43 @@ export default function BookingDetails() {
     setIsCompleteModalOpen(true);
   };
 
+  const handleReopenBooking = () => {
+    setIsReopenModalOpen(true);
+  };
+
+  const handleConfirmReopen = async () => {
+    const { error } = await supabase
+      .from("bookings")
+      .update({
+        status: "scheduled",
+        completed_at: null,
+        amount_paid: null,
+        payment_method: null,
+      })
+      .eq("id", bookingId);
+
+    if (error) {
+      toast.error("Error reopening booking:", error);
+    } else {
+      // Decrement jobs_executed for assigned team members
+      if (booking?.assigned_to && booking.assigned_to.length > 0) {
+        const updatePromises = booking.assigned_to.map(async (member) => {
+          const { error } = await supabase.rpc('decrement_jobs_executed', {
+            user_id: member.id
+          });
+          if (error) {
+            toast.error(`Error updating jobs for ${member.name}: ${error.message}`);
+          }
+        });
+        await Promise.all(updatePromises);
+      }
+
+      setIsReopenModalOpen(false);
+      fetchBookingDetails();
+      toast.success("Booking reopened successfully!");
+    }
+  };
+
   const handleConfirmCompletion = async () => {
     const { error } = await supabase
       .from("bookings")
@@ -193,10 +234,24 @@ export default function BookingDetails() {
       .eq("id", bookingId);
 
     if (error) {
-      toast.error("Error updating booking:", error);
+      toast.error("Error updating booking:", error.message);
     } else {
+      // Increment jobs_executed for assigned team members
+      if (booking?.assigned_to && booking.assigned_to.length > 0) {
+        const updatePromises = booking.assigned_to.map(async (member) => {
+          const { error } = await supabase.rpc('increment_jobs_executed', {
+            user_id: member.id
+          });
+          if (error) {
+            toast.error(`Error updating jobs for ${member.name}: ${error.message}`);
+          }
+        });
+        await Promise.all(updatePromises);
+      }
+
       setIsCompleteModalOpen(false);
       fetchBookingDetails();
+      toast.success("Booking marked as completed successfully!");
     }
   };
 
@@ -341,6 +396,11 @@ export default function BookingDetails() {
   };
 
   const handleTeamMemberSelection = async (keys: Selection) => {
+    if (booking?.status === "completed") {
+      setIsEditBlockedModalOpen(true);
+      return;
+    }
+
     const selectedIds = Array.from(keys) as string[];
 
     setSelectedTeamMembers(new Set(selectedIds));
@@ -357,10 +417,10 @@ export default function BookingDetails() {
       .eq("id", bookingId);
 
     if (error) {
-      // Replace console.error with a toast notification
-      toast.error("Error updating assigned team");
+      toast.error("Error updating assigned team:", error.message);
     } else {
       fetchBookingDetails();
+      toast.success("Team members updated successfully!");
     }
   };
 
@@ -378,17 +438,33 @@ export default function BookingDetails() {
   );
 
   const handleEditSave = async (updatedBooking: Partial<Booking>) => {
+    if (booking?.status === "completed") {
+      setIsEditBlockedModalOpen(true);
+      return;
+    }
+
+    // Remove assigned_to from updatedBooking to prevent changes
+    const { assigned_to, ...bookingToUpdate } = updatedBooking;
+
     const { error } = await supabase
       .from("bookings")
-      .update(updatedBooking)
+      .update(bookingToUpdate)
       .eq("id", bookingId);
 
     if (error) {
-      toast.error("Error updating booking:", error);
+      toast.error("Error updating booking:", error.message);
     } else {
       setIsEditModalOpen(false);
       fetchBookingDetails();
       toast.success("Booking updated successfully!");
+    }
+  };
+
+  const handleEditClick = () => {
+    if (booking?.status === "completed") {
+      setIsEditBlockedModalOpen(true);
+    } else {
+      setIsEditModalOpen(true);
     }
   };
 
@@ -432,7 +508,7 @@ export default function BookingDetails() {
             color="primary"
             startContent={<PencilIcon className="w-4 h-4" />}
             variant="bordered"
-            onPress={() => setIsEditModalOpen(true)}
+            onPress={handleEditClick}
           >
             Edit
           </Button>
@@ -542,6 +618,7 @@ export default function BookingDetails() {
                   selectedKeys={selectedTeamMembers}
                   selectionMode="multiple"
                   onSelectionChange={handleTeamMemberSelection}
+                  isDisabled={booking?.status === "completed"}
                 >
                   {(member) => (
                     <SelectItem key={member.id} textValue={member.name}>
@@ -721,8 +798,22 @@ export default function BookingDetails() {
           Created on: {new Date(booking.created_at).toLocaleDateString()} by{" "}
           {booking.created_by || "Unknown"}
         </span>
-        {booking.status !== "completed" && (
-          <Button color="primary" size="lg" onPress={handleMarkAsCompleted}>
+        {booking.status === "completed" ? (
+          <Button
+            color="warning"
+            size="lg"
+            startContent={<ArrowPathIcon className="w-5 h-5" />}
+            onPress={handleReopenBooking}
+          >
+            Re-open Booking
+          </Button>
+        ) : (
+          <Button
+            color="primary"
+            size="lg"
+            startContent={<CheckIcon className="w-5 h-5" />}
+            onPress={handleMarkAsCompleted}
+          >
             Mark as Completed
           </Button>
         )}
@@ -855,6 +946,56 @@ export default function BookingDetails() {
               />
             )}
           </ModalBody>
+        </ModalContent>
+      </Modal>
+
+      {/* Reopen Booking Modal */}
+      <Modal
+        backdrop="blur"
+        isOpen={isReopenModalOpen}
+        onClose={() => setIsReopenModalOpen(false)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            Confirm Reopening
+          </ModalHeader>
+          <ModalBody>
+            <p>Are you sure you want to reopen this booking?</p>
+            <p>This will change the status back to 'Scheduled' and clear the completion details.</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button
+              color="default"
+              variant="light"
+              onPress={() => setIsReopenModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button color="warning" onPress={handleConfirmReopen}>
+              Reopen
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
+      {/* Edit Blocked Modal */}
+      <Modal
+        isOpen={isEditBlockedModalOpen}
+        onClose={() => setIsEditBlockedModalOpen(false)}
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            Editing Restricted
+          </ModalHeader>
+          <ModalBody>
+            <p>This booking has been completed and cannot be edited.</p>
+            <p>Only adding images before/after is allowed for completed bookings.</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="primary" onPress={() => setIsEditBlockedModalOpen(false)}>
+              Understood
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
     </div>
