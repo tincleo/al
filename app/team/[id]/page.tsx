@@ -195,16 +195,15 @@ const TeamMemberDetails = () => {
   const fetchBalanceHistory = async () => {
     const { data, error } = await supabase
       .from("balance_history")
-      .select(
-        "id, amount, type, reason, previous_balance, new_balance, created_at, notes",
-      )
+      .select("*")
       .eq("team_member_id", memberId)
       .order("created_at", { ascending: false });
 
     if (error) {
+      console.error("Error fetching balance history:", error);
       toast.error(`Error fetching balance history: ${error.message}`);
     } else {
-      setBalanceHistory(data);
+      setBalanceHistory(data || []);
     }
   };
 
@@ -256,7 +255,7 @@ const TeamMemberDetails = () => {
         newTotalEarned += changeAmount;
       }
 
-      const { error } = await supabase.rpc("update_balance_and_history", {
+      console.log("RPC call parameters:", {
         p_member_id: member.id,
         p_new_balance: newBalance,
         p_new_total_earned: newTotalEarned,
@@ -266,10 +265,28 @@ const TeamMemberDetails = () => {
         p_notes: balanceNote || null,
       });
 
+      const { data, error } = await supabase.rpc("update_balance_and_history", {
+        p_member_id: member.id,
+        p_new_balance: newBalance,
+        p_new_total_earned: newTotalEarned,
+        p_amount: finalChangeAmount,
+        p_reason: balanceReason,
+        p_previous_balance: previousBalance,
+        p_notes: balanceNote || null,
+      });
+
+      console.log("Supabase RPC response:", { data, error });
+
       if (error) {
-        throw error;
+        console.error("Supabase RPC error:", error);
+        throw new Error(`Supabase RPC error: ${error.message}`);
       }
 
+      if (data === null) {
+        console.warn("No data returned from Supabase RPC, but no error occurred");
+      }
+
+      // Proceed with updating the local state even if data is null
       setMember({
         ...member,
         current_balance: newBalance,
@@ -286,7 +303,8 @@ const TeamMemberDetails = () => {
 
       fetchBalanceHistory();
     } catch (error) {
-      toast.error("Failed to update balance. Please try again.");
+      console.error("Error updating balance:", error);
+      toast.error(`Failed to update balance: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsBalanceUpdateLoading(false);
     }
