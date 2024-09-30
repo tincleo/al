@@ -40,7 +40,7 @@ import { WhatsAppIcon } from "../components/WhatsAppIcon";
 import { EyeIcon } from "../components/EyeIcon";
 // Remove or comment out the PhoneIcon import
 // import { PhoneIcon } from "../components/PhoneIcon";
-import { UpdateBalanceModal } from "../components/UpdateBalanceModal";
+// import { UpdateBalanceModal } from "../components/UpdateBalanceModal";
 
 const statusColorMap: Record<string, ChipProps["color"]> = {
   active: "success",
