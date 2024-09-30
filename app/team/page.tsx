@@ -443,8 +443,8 @@ export default function TeamPage() {
     const { data, error } = await supabase.from("team").select("*");
 
     if (error) {
-      toast.error("Error fetching team members:", error);
-    } else {
+      toast.error(`Error fetching team members: ${error.message}`);
+    } else if (data) {
       setTeamMembers(data);
     }
   };

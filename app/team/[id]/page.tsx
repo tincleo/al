@@ -236,13 +236,11 @@ const TeamMemberDetails = () => {
 
       if (isNaN(changeAmount) || changeAmount <= 0) {
         setBalanceError("Please enter a valid positive number");
-
         return;
       }
 
       if (!balanceReason) {
         setBalanceError("Please select a reason");
-
         return;
       }
 
@@ -258,7 +256,7 @@ const TeamMemberDetails = () => {
         newTotalEarned += changeAmount;
       }
 
-      const { data, error } = await supabase.rpc("update_balance_and_history", {
+      const { error } = await supabase.rpc("update_balance_and_history", {
         p_member_id: member.id,
         p_new_balance: newBalance,
         p_new_total_earned: newTotalEarned,
@@ -288,7 +286,6 @@ const TeamMemberDetails = () => {
 
       fetchBalanceHistory();
     } catch (error) {
-      console.error("Error updating balance:", error);
       toast.error("Failed to update balance. Please try again.");
     } finally {
       setIsBalanceUpdateLoading(false);
@@ -559,7 +556,6 @@ const TeamMemberDetails = () => {
 
       fetchBalanceHistory();
     } catch (error) {
-      console.error("Error clearing balance:", error);
       toast.error("Failed to clear balance. Please try again.");
     } finally {
       setIsClearingBalance(false);
