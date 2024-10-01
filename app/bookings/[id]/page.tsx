@@ -26,6 +26,7 @@ import {
   Select,
   SelectItem,
   Selection,
+  Spinner,
 } from "@nextui-org/react";
 import {
   CalendarIcon,
@@ -40,14 +41,15 @@ import {
   XCircleIcon,
   CheckIcon,
   ArrowPathIcon,
+  ClipboardIcon,
 } from "@heroicons/react/24/outline";
 import Image from "next/image";
-import { Spinner } from "@nextui-org/react";
 import toast, { Toaster } from "react-hot-toast";
+import { format } from 'date-fns';
 
 import { supabase } from "@/lib/supabaseClient";
 
-import { title } from "../../components/primitives";
+import { title, titleStyles } from "../../components/primitives";
 import { NewBookingForm } from "../../components/NewBookingForm";
 
 type Booking = {
@@ -103,6 +105,7 @@ export default function BookingDetails() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
   const [isEditBlockedModalOpen, setIsEditBlockedModalOpen] = useState(false);
+  const [deletingImages, setDeletingImages] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchBookingDetails();
@@ -137,8 +140,12 @@ export default function BookingDetails() {
       };
 
       setBooking(bookingWithLocationName);
-      if (bookingWithLocationName.amount_paid)
+      if (bookingWithLocationName.amount_paid) {
         setAmountPaid(bookingWithLocationName.amount_paid.toString());
+      } else {
+        // Prefill with booking price if amount_paid is not set
+        setAmountPaid(bookingWithLocationName.price.toString());
+      }
       setSelectedTeamMembers(
         new Set(
           bookingWithLocationName.assigned_to.map(
@@ -365,6 +372,7 @@ export default function BookingDetails() {
     imageUrl: string,
     type: "before" | "after",
   ) => {
+    setDeletingImages((prev) => new Set(prev).add(imageUrl));
     try {
       const updatedImages =
         booking?.[`images_${type}`]?.filter((img) => img !== imageUrl) || [];
@@ -390,8 +398,13 @@ export default function BookingDetails() {
       // Refresh booking details
       fetchBookingDetails();
     } catch (error) {
-      // Replace console.error with a toast notification
       toast.error(`Error deleting image`);
+    } finally {
+      setDeletingImages((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(imageUrl);
+        return newSet;
+      });
     }
   };
 
@@ -468,6 +481,71 @@ export default function BookingDetails() {
     }
   };
 
+  const renderImageGrid = (images: string[] | null, type: "before" | "after") => (
+    <div className="mt-4 grid grid-cols-3 gap-1">
+      {images?.map((image, index) => (
+        <div key={index} className="relative group">
+          <Image
+            alt={`${type.charAt(0).toUpperCase() + type.slice(1)} ${index + 1}`}
+            className="object-cover rounded cursor-pointer w-full h-full"
+            height={150}
+            loader={supabaseLoader}
+            src={image.replace(
+              "https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/",
+              "",
+            )}
+            width={150}
+            onClick={() => handleImageClick(image)}
+          />
+          <div
+            className={`absolute inset-x-0 bottom-0 flex justify-center items-center p-2 transition-opacity ${
+              deletingImages.has(image) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            <Button
+              className="bg-black text-white hover:bg-gray-800"
+              disabled={deletingImages.has(image)}
+              size="sm"
+              onPress={() => handleDeleteImage(image, type)}
+            >
+              {deletingImages.has(image) ? (
+                <Spinner size="sm" color="white" />
+              ) : (
+                "Delete"
+              )}
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const formatPlannedDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return format(date, "MMMM d, yyyy 'at' HH:mm");
+  };
+
+  const copyBookingSummary = () => {
+    if (!booking) return;
+
+    const summary = `
+Booking Summary:
+Services: ${booking.services.join(', ')}
+Date: ${formatPlannedDate(booking.planned_at)}
+Location: ${booking.location_name}${booking.address ? `, ${booking.address}` : ''}
+Price: ${booking.price} FCFA
+Status: ${booking.status.toUpperCase()}
+Client Phone: ${booking.client_phone}
+${booking.more_info ? `Notes: ${booking.more_info}` : ''}
+    `.trim();
+
+    navigator.clipboard.writeText(summary).then(() => {
+      toast.success("Booking summary copied to clipboard!");
+    }, () => {
+      toast.error("Failed to copy booking summary");
+    });
+  };
+
   if (!booking) return <div>Loading...</div>;
 
   return (
@@ -499,6 +577,14 @@ export default function BookingDetails() {
         <div className="flex space-x-2">
           <Button
             color="primary"
+            startContent={<ClipboardIcon className="w-4 h-4" />}
+            variant="bordered"
+            onPress={copyBookingSummary}
+          >
+            Copy
+          </Button>
+          <Button
+            color="primary"
             startContent={<ShareIcon className="w-4 h-4" />}
             variant="bordered"
           >
@@ -526,36 +612,33 @@ export default function BookingDetails() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-4">
           <CardHeader>
-            <div className="flex flex-wrap gap-2">
-              {booking.services.map((service, index) => (
-                <Chip key={index} color="primary" variant="flat">
-                  {service}
-                </Chip>
-              ))}
+            <div className="flex flex-col gap-2">
+              <span className="font-semibold">Tasks:</span>
+              <div className="flex flex-wrap gap-2">
+                {booking.services.map((service, index) => (
+                  <Chip key={index} color="primary" variant="flat">
+                    {service}
+                  </Chip>
+                ))}
+              </div>
             </div>
           </CardHeader>
-          <Divider />
           <CardBody>
             <div className="space-y-4">
               <div className="flex items-center space-x-2">
                 <CalendarIcon className="w-5 h-5 text-primary" />
                 <span className="font-semibold">Planned for:</span>
-                <span>{new Date(booking.planned_at).toLocaleString()}</span>
+                <span>{formatPlannedDate(booking.planned_at)}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <MapPinIcon className="w-5 h-5 text-primary" />
                 <span className="font-semibold">Location:</span>
-                <span>{booking.location_name || "Unknown Location"}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <MapPinIcon className="w-5 h-5 text-primary" />
-                <span className="font-semibold">Address:</span>
-                <span>{booking.address}</span>
+                <span>{`${booking.location_name || "Unknown Location"}${booking.address ? `, ${booking.address}` : ''}`}</span>
               </div>
               <div className="flex items-center space-x-2">
                 <CurrencyDollarIcon className="w-5 h-5 text-primary" />
                 <span className="font-semibold">Price:</span>
-                <span>${booking.price}</span>
+                <span>{booking.price} FCFA</span>
               </div>
               <div className="flex items-center space-x-2">
                 <PhoneIcon className="w-5 h-5 text-primary" />
@@ -589,17 +672,7 @@ export default function BookingDetails() {
                   </DropdownMenu>
                 </Dropdown>
               </div>
-            </div>
-          </CardBody>
-        </Card>
-
-        <Card className="p-4">
-          <CardHeader>
-            <h2 className={title({ size: "sm" })}>Additional Information</h2>
-          </CardHeader>
-          <Divider />
-          <CardBody>
-            <div className="space-y-4">
+              <Divider />
               <div>
                 <div className="flex items-center space-x-2 mb-2">
                   <InformationCircleIcon className="w-5 h-5 text-primary" />
@@ -609,10 +682,21 @@ export default function BookingDetails() {
                   {booking.more_info || "No additional information"}
                 </p>
               </div>
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card className="p-4">
+          <CardHeader>
+            <h2 className={titleStyles({ size: "xxs" })}>Additional Information</h2>
+          </CardHeader>
+          <Divider />
+          <CardBody>
+            <div className="space-y-4">
               <div>
                 <span className="font-semibold">Assigned Team:</span>
                 <Select
-                  className="max-w-xs mt-2"
+                  className="w-full mt-2"
                   items={teamMembers}
                   placeholder="Select team members"
                   selectedKeys={selectedTeamMembers}
@@ -667,7 +751,7 @@ export default function BookingDetails() {
         <Card className="p-4">
           <div className="h-full">
             <CardHeader className="flex justify-between items-center">
-              <h2 className={title({ size: "sm" })}>Images Before</h2>
+              <h2 className={titleStyles({ size: "xxs" })}>Images Before</h2>
               <Button
                 isIconOnly
                 size="sm"
@@ -692,33 +776,7 @@ export default function BookingDetails() {
                   <Spinner color="primary" label="Uploading..." />
                 </div>
               ) : booking?.images_before && booking.images_before.length > 0 ? (
-                <div className="mt-4 grid grid-cols-3 gap-1">
-                  {booking.images_before.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <Image
-                        alt={`Before ${index + 1}`}
-                        className="object-cover rounded cursor-pointer w-full h-full"
-                        height={150}
-                        loader={supabaseLoader}
-                        src={image.replace(
-                          "https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/",
-                          "",
-                        )}
-                        width={150}
-                        onClick={() => handleImageClick(image)}
-                      />
-                      <button
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteImage(image, "before");
-                        }}
-                      >
-                        <XCircleIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                renderImageGrid(booking.images_before, "before")
               ) : (
                 <div className="flex justify-center items-center h-40 text-gray-400">
                   <p>No images uploaded yet</p>
@@ -731,7 +789,7 @@ export default function BookingDetails() {
         <Card className="p-4">
           <div className="h-full">
             <CardHeader className="flex justify-between items-center">
-              <h2 className={title({ size: "sm" })}>Images After</h2>
+              <h2 className={titleStyles({ size: "xxs" })}>Images After</h2>
               <Button
                 isIconOnly
                 size="sm"
@@ -756,33 +814,7 @@ export default function BookingDetails() {
                   <Spinner color="primary" label="Uploading..." />
                 </div>
               ) : booking?.images_after && booking.images_after.length > 0 ? (
-                <div className="mt-4 grid grid-cols-3 gap-1">
-                  {booking.images_after.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <Image
-                        alt={`After ${index + 1}`}
-                        className="object-cover rounded cursor-pointer w-full h-full"
-                        height={150}
-                        loader={supabaseLoader}
-                        src={image.replace(
-                          "https://wobsffraovwwjbxcrtdi.supabase.co/storage/v1/object/public/",
-                          "",
-                        )}
-                        width={150}
-                        onClick={() => handleImageClick(image)}
-                      />
-                      <button
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteImage(image, "after");
-                        }}
-                      >
-                        <XCircleIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                renderImageGrid(booking.images_after, "after")
               ) : (
                 <div className="flex justify-center items-center h-40 text-gray-400">
                   <p>No images uploaded yet</p>
@@ -838,7 +870,7 @@ export default function BookingDetails() {
                 label="Amount paid:"
                 startContent={
                   <div className="pointer-events-none flex items-center">
-                    <span className="text-default-400 text-small">$</span>
+                    <span className="text-default-400 text-small">FCFA</span>
                   </div>
                 }
                 type="number"
